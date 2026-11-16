@@ -3,6 +3,10 @@
   "version": "0.5.0",
   "private": true,
   "description": "跑团备团配乐：把场景清单变成带标签的曲目表，导出可粘贴歌单清单 · TRPG session-prep BGM cue sheets",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fengnowuyu-beep/dsh-bgm-prep.git"
+  },
   "type": "module",
   "main": "lib/index.js",
   "exports": {
