@@ -1,0 +1,78 @@
+[
+  {
+    "scene": "霍根面包房 · 奥利依的办公室",
+    "trigger": "他合上报纸，把拔钉锤轻轻放在桌面正中央",
+    "wants": ["1920年代 爵士 黑帮 低沉"],
+    "tags": { "tension": 5, "valence": "dark", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "阿卡姆街头 · 走访",
+    "trigger": "广告公司、报社、街角线人，一条线索接一条",
+    "need_bgm": false
+  },
+  {
+    "scene": "密斯卡托尼克大学 · 图书馆",
+    "trigger": "借阅卡上那行被划掉的名字",
+    "wants": ["安静的图书馆 学术 钢琴"],
+    "tags": { "tension": 3, "valence": "neutral", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "密斯卡托尼克大学 · 博物馆展柜",
+    "trigger": "玻璃被划出一个圆，匕首的绒布空了",
+    "tags": { "tension": 6, "valence": "dark", "energy": "building", "texture": ["strings"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "斯坦利·大卫教授的家",
+    "trigger": "教授反复说：那东西不该被翻出来",
+    "need_bgm": false
+  },
+  {
+    "scene": "西克莫地下酒吧",
+    "trigger": "推开没标记的铁门，烟雾和钢琴声一起涌出来",
+    "wants": ["1920年代 地下酒吧 爵士 钢琴"],
+    "tags": { "tension": 4, "valence": "neutral", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "希望教会 · 祈祷会",
+    "trigger": "史密斯站在十字架前，让所有人闭上眼开始默祷",
+    "wants": ["教堂 管风琴 圣歌 诡异"],
+    "tags": { "tension": 7, "valence": "dark", "energy": "building", "texture": ["choir"], "vocal": "wordless", "min_len": 240 }
+  },
+  {
+    "scene": "夜街 · 跟踪史密斯",
+    "trigger": "他拐进巷子，你压低帽檐跟上去",
+    "tags": { "tension": 7, "valence": "dark", "energy": "driving", "texture": ["percussion"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "科曾街22号 · 公寓楼内",
+    "trigger": "走廊向两边无限延伸，楼梯上下各有数百级",
+    "tags": { "tension": 8, "valence": "dark", "energy": "static", "texture": ["drone"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "杰克的房间 · 癫狂之乐",
+    "trigger": "地板上是人形的灰烬，笛声在节拍上起起伏伏",
+    "wants": ["不和谐 长笛 诡异 无调性"],
+    "tags": { "tension": 9, "valence": "dark", "energy": "static", "texture": ["drone"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "左边的门 · 阿撒托斯的宫殿",
+    "trigger": "门后是宇宙的深渊，中心是翻滚的盲目痴愚之神",
+    "wants": ["宇宙 深渊 合唱 宏大 恐怖"],
+    "tags": { "tension": 10, "valence": "dark", "energy": "burst", "texture": ["choir"], "vocal": "wordless", "min_len": 180 }
+  },
+  {
+    "scene": "远端的门 · 杰克",
+    "trigger": "「帮帮我。我停不下来。杀了我吧。」",
+    "need_bgm": false
+  },
+  {
+    "scene": "逃离",
+    "trigger": "门在身后关上，楼梯在脚下塌陷",
+    "tags": { "tension": 9, "valence": "dark", "energy": "driving", "texture": ["percussion"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "结局 · 缴款",
+    "trigger": "把东西放上奥利依的桌子，他数了数，什么也没说",
+    "tags": { "tension": 3, "valence": "dark", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 180 }
+  }
+]

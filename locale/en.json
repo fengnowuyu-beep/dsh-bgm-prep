@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Tabletop BGM prep",
+    "description": "Turn a module's scenes into a tagged cue sheet: one primary track plus fallbacks per scene, exported as a paste-ready playlist list. Search works on playlists, and the sheet lives next to the module file.",
+    "detail": "docs/DETAIL.md"
+  }
+}

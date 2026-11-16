@@ -1,0 +1,15 @@
+# dsh-bgm-prep bundle patch
+#
+# 插入一个 Host 插件行：注册 bgm_init / bgm_fetch / bgm_pick / bgm_view / bgm_commit。
+# 没有客户端半边，没有 HTTP 路由，没有后台任务。
+#
+# 可调项放在 $DSH_HOME/bgm-prep/settings.json，不进这里：
+#   {
+#     "seedPlaylists": [3778678, 1234567],   // 种子歌单 id，检索优先从这些歌单取曲
+#     "candidateLimit": 8,                    // 每段保留几首候选
+#     "fetchBudget": 200                      // 单次 bgm_fetch 的调用预算
+#   }
+- insert:
+    - id: bgm-prep
+      name: 'dsh-bgm-prep'
+      config: {}

@@ -1,0 +1,27 @@
+# OS and editor junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+*~
+*.swp
+
+# A local install inside the plugin would create this; the profile owns the
+# real link.
+node_modules/
+
+# Python side pieces (the CLAP tagging helpers)
+__pycache__/
+.venv/
+.venv-install.log
+
+# Scratch output from the probes and diagnostics
+*.log
+*.tmp
+*.dropped.json
+
+# Private source material. The scenario text under examples/ is the
+# publisher's copyrighted work, kept only for local cue-sheet preparation;
+# the .bak-* files are intermediate cue sheets. Neither belongs in a
+# repository that may be published.
+examples/_*.txt
+examples/*.bak-*

@@ -1,0 +1,71 @@
+[
+  {
+    "scene": "97号公路 · 暴风雨前的内布拉斯加",
+    "trigger": "车窗外是平原，天边压着一道不正常的紫色云墙",
+    "wants": ["暴风雨前 空旷 低鸣"],
+    "tags": { "tension": 4, "valence": "dark", "energy": "static", "texture": ["drone"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "郡法院 · 探视斯坦",
+    "trigger": "隔着铁栏，他说：我杀了她，我记得我杀了她",
+    "tags": { "tension": 5, "valence": "dark", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "凯莉的公寓",
+    "trigger": "屋里没收拾，冰箱上还贴着便条",
+    "tags": { "tension": 4, "valence": "dark", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "小镇酒吧 · 打听消息",
+    "trigger": "威士忌、点唱机、还有几个不太想说话的人",
+    "wants": ["乡村 酒吧 吉他 安静"],
+    "tags": { "tension": 3, "valence": "neutral", "energy": "static", "texture": ["folk"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "GPCA · 天线场与观测塔",
+    "trigger": "八面天线同时转向，钢架在风里发出低频的嗡声",
+    "wants": ["电子 机械 空旷 脉冲"],
+    "tags": { "tension": 5, "valence": "neutral", "energy": "building", "texture": ["synth"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "格赫罗斯的信号",
+    "trigger": "尼尔博士按下播放键：那段被人声化处理过的、不协和的歌",
+    "wants": ["不协和 宇宙 低频 嗡鸣"],
+    "tags": { "tension": 8, "valence": "dark", "energy": "static", "texture": ["drone", "choir"], "vocal": "wordless", "min_len": 240 }
+  },
+  {
+    "scene": "事件 · 蝗灾与群鸦",
+    "trigger": "电线上的鸟一动不动，全朝着同一个方向",
+    "wants": ["密集 虫群 不安 低频"],
+    "tags": { "tension": 7, "valence": "dark", "energy": "building", "texture": ["percussion"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "事件 · 疯狗",
+    "trigger": "三条狗堵在巷口，不叫，只是盯着你",
+    "need_bgm": false
+  },
+  {
+    "scene": "事件 · 地震",
+    "trigger": "餐具先响，然后整栋楼的窗户一起震起来",
+    "wants": ["地震 低频 轰鸣 压迫"],
+    "tags": { "tension": 8, "valence": "dark", "energy": "burst", "texture": ["percussion"], "vocal": "none", "min_len": 120 }
+  },
+  {
+    "scene": "海登之舞 · 全镇疯狂",
+    "trigger": "街上有人在跳舞，有人点火，加油站的油泵在雨里烧",
+    "wants": ["末世 暴乱 混乱 燃烧"],
+    "tags": { "tension": 10, "valence": "dark", "energy": "burst", "texture": ["percussion"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "控制室 · 关闭天线",
+    "trigger": "两次技能检定，闪电在窗外炸，倒计时在屏上跳",
+    "wants": ["紧张 设备 倒计时 电子"],
+    "tags": { "tension": 9, "valence": "dark", "energy": "driving", "texture": ["synth"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "结局 · 静下来的平原",
+    "trigger": "雨停了，天线停在半空，镇上没有一盏灯亮着",
+    "wants": ["余烬 空旷 忧伤 长音"],
+    "tags": { "tension": 3, "valence": "dark", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 240 }
+  }
+]

@@ -1,0 +1,611 @@
+{
+  "schema": 1,
+  "module": "血阳",
+  "session": 1,
+  "scope": "blood-sun",
+  "source": null,
+  "createdAt": "2026-11-15T20:57:42.284Z",
+  "updatedAt": "2026-11-15T20:58:30.595Z",
+  "directives": [],
+  "cues": [
+    {
+      "id": "c01",
+      "scene": "村庄 · 血月升起",
+      "trigger": "红月照在打谷场上，狗不叫了",
+      "need_bgm": true,
+      "state": "ready",
+      "tags": {
+        "tension": 6,
+        "valence": "dark",
+        "energy": "static",
+        "texture": [
+          "drone"
+        ],
+        "vocal": "none",
+        "min_len": 180
+      },
+      "candidates": [
+        {
+          "song_id": 1866857197,
+          "title": "压抑",
+          "artist": "吉姑李成",
+          "album": "纯音乐集",
+          "duration": 190,
+          "encrypted_id": "0C658ED4E18F3F6256095D9068BB9ED1",
+          "score": 9,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1485689754,
+          "title": "恐怖气氛",
+          "artist": "恐怖背景音乐",
+          "album": "恐怖的声音: 恐怖笑声, 鬼屋的声音, 黑暗环境和恐怖气氛的背景音乐",
+          "duration": 322,
+          "encrypted_id": "262B46755231EBB327D772171336856B",
+          "score": 8,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 565081324,
+          "title": "Dark Corners of the Earth",
+          "artist": "Cedric Mevrel",
+          "album": "The Dark Cave, Vol. 2",
+          "duration": 192,
+          "encrypted_id": "E6CFC0C33D570FEE1DCAE5CEEEA858BF",
+          "score": 5,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 29406314,
+          "title": "Disappear in Light",
+          "artist": "Equal Stones / Endless Melancholy",
+          "album": "Hidden Vibes Vol. 6",
+          "duration": 325,
+          "encrypted_id": "F40C29301DA6FA6C0D9AC624E619F46A",
+          "score": 5,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 505632371,
+          "title": "❄️",
+          "artist": "Lynn",
+          "album": "❄️",
+          "duration": 277,
+          "encrypted_id": "D64DB88DABC7B923F2F9C11B7A6E80C4",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 473805760,
+          "title": "❄️",
+          "artist": "adan",
+          "album": "「已售」",
+          "duration": 275,
+          "encrypted_id": "EE85E3DD7C9CBBD7496849DFA867B279",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 468176711,
+          "title": "城南花已开",
+          "artist": "三亩地",
+          "album": "城南花已开",
+          "duration": 271,
+          "encrypted_id": "BA06B6F95532DA154B93487F465F23F2",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 2673296815,
+          "title": "复刻回忆(无掌声版)",
+          "artist": "Pianoboy高至豪",
+          "album": "复刻回忆",
+          "duration": 266,
+          "encrypted_id": "3976776C7BA8A21029E0CA143A16F556",
+          "score": 1,
+          "intro_unknown": true
+        }
+      ],
+      "picks": {
+        "primary": {
+          "song_id": 1866857197,
+          "why": "纯音乐集 · 3分"
+        },
+        "alts": [
+          {
+            "song_id": 1485689754,
+            "why": "恐怖气氛"
+          },
+          {
+            "song_id": 565081324,
+            "why": "Dark Corners of the "
+          }
+        ]
+      },
+      "rejected": [],
+      "note": ""
+    },
+    {
+      "id": "c02",
+      "scene": "祠堂 · 牌位",
+      "trigger": "推开祠堂门，看见多出来的一块牌位",
+      "need_bgm": true,
+      "state": "ready",
+      "tags": {
+        "tension": 7,
+        "valence": "dark",
+        "energy": "static",
+        "texture": [
+          "strings"
+        ],
+        "vocal": "none",
+        "min_len": 180
+      },
+      "candidates": [
+        {
+          "song_id": 1866857197,
+          "title": "压抑",
+          "artist": "吉姑李成",
+          "album": "纯音乐集",
+          "duration": 190,
+          "encrypted_id": "0C658ED4E18F3F6256095D9068BB9ED1",
+          "score": 9,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1485689754,
+          "title": "恐怖气氛",
+          "artist": "恐怖背景音乐",
+          "album": "恐怖的声音: 恐怖笑声, 鬼屋的声音, 黑暗环境和恐怖气氛的背景音乐",
+          "duration": 322,
+          "encrypted_id": "262B46755231EBB327D772171336856B",
+          "score": 8,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 565081324,
+          "title": "Dark Corners of the Earth",
+          "artist": "Cedric Mevrel",
+          "album": "The Dark Cave, Vol. 2",
+          "duration": 192,
+          "encrypted_id": "E6CFC0C33D570FEE1DCAE5CEEEA858BF",
+          "score": 5,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 29406314,
+          "title": "Disappear in Light",
+          "artist": "Equal Stones / Endless Melancholy",
+          "album": "Hidden Vibes Vol. 6",
+          "duration": 325,
+          "encrypted_id": "F40C29301DA6FA6C0D9AC624E619F46A",
+          "score": 5,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 505632371,
+          "title": "❄️",
+          "artist": "Lynn",
+          "album": "❄️",
+          "duration": 277,
+          "encrypted_id": "D64DB88DABC7B923F2F9C11B7A6E80C4",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 473805760,
+          "title": "❄️",
+          "artist": "adan",
+          "album": "「已售」",
+          "duration": 275,
+          "encrypted_id": "EE85E3DD7C9CBBD7496849DFA867B279",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 468176711,
+          "title": "城南花已开",
+          "artist": "三亩地",
+          "album": "城南花已开",
+          "duration": 271,
+          "encrypted_id": "BA06B6F95532DA154B93487F465F23F2",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 2673296815,
+          "title": "复刻回忆(无掌声版)",
+          "artist": "Pianoboy高至豪",
+          "album": "复刻回忆",
+          "duration": 266,
+          "encrypted_id": "3976776C7BA8A21029E0CA143A16F556",
+          "score": 1,
+          "intro_unknown": true
+        }
+      ],
+      "picks": {
+        "primary": {
+          "song_id": 1485689754,
+          "why": "恐怖的声音: 恐怖笑声, 鬼屋的声音, 黑暗环境和恐怖气氛的"
+        },
+        "alts": [
+          {
+            "song_id": 1866857197,
+            "why": "压抑"
+          },
+          {
+            "song_id": 565081324,
+            "why": "Dark Corners of the "
+          }
+        ]
+      },
+      "rejected": [],
+      "note": ""
+    },
+    {
+      "id": "c03",
+      "scene": "祭坛 · 对峙",
+      "trigger": "族长在祭坛前转过身，手里还端着那碗血",
+      "need_bgm": true,
+      "state": "ready",
+      "tags": {
+        "tension": 8,
+        "valence": "dark",
+        "energy": "building",
+        "texture": [
+          "choir"
+        ],
+        "vocal": "wordless",
+        "min_len": 240
+      },
+      "candidates": [
+        {
+          "song_id": 1485689754,
+          "title": "恐怖气氛",
+          "artist": "恐怖背景音乐",
+          "album": "恐怖的声音: 恐怖笑声, 鬼屋的声音, 黑暗环境和恐怖气氛的背景音乐",
+          "duration": 322,
+          "encrypted_id": "262B46755231EBB327D772171336856B",
+          "score": 4,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 2045166934,
+          "title": "此曲献给理想主义者",
+          "artist": "梵离纱写给伊利斯的信",
+          "album": "此曲献给理想主义者",
+          "duration": 349,
+          "encrypted_id": "4B05F86CEC3C00B458D8CFF112F21B9B",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1852243698,
+          "title": "念故乡",
+          "artist": "范宗沛",
+          "album": "夜星咏叹调－舒眠古典乐",
+          "duration": 322,
+          "encrypted_id": "B828D203AB70ABA35ABB8B0FA75174DC",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 544519444,
+          "title": "Arcane",
+          "artist": "Kevin MacLeod",
+          "album": "Traveller",
+          "duration": 323,
+          "encrypted_id": "9E17EDAB74AF249C24C61ED20E83A6E3",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 21887785,
+          "title": "Asuf D Alwa",
+          "artist": "Tinariwen",
+          "album": "Tassili",
+          "duration": 251,
+          "encrypted_id": "3E38EB790CF7D29C98A8A3BAA03C14A0",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1070981,
+          "title": "Death Waltz",
+          "artist": "Adam Hurst",
+          "album": "Ruin",
+          "duration": 267,
+          "encrypted_id": "378362657502A503CD8CA52C58830F6A",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1352092284,
+          "title": "Kindness",
+          "artist": "SHIMMER",
+          "album": "With Heart",
+          "duration": 241,
+          "encrypted_id": "DBC397E550ED108C955469D86EC59E1E",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 28280555,
+          "title": "Kiss Of Death",
+          "artist": "Tinsley Ellis",
+          "album": "Midnight Blue",
+          "duration": 426,
+          "encrypted_id": "D1ABD51DDC8561C85A1FB00DD00D9717",
+          "score": 1,
+          "intro_unknown": true
+        }
+      ],
+      "picks": {
+        "primary": {
+          "song_id": 2045166934,
+          "why": "此曲献给理想主义者 · 5分"
+        },
+        "alts": [
+          {
+            "song_id": 1485689754,
+            "why": "恐怖气氛"
+          },
+          {
+            "song_id": 1852243698,
+            "why": "念故乡"
+          }
+        ]
+      },
+      "rejected": [],
+      "note": ""
+    },
+    {
+      "id": "c04",
+      "scene": "麦田 · 追逐",
+      "trigger": "火把在身后排成一线，越来越近",
+      "need_bgm": true,
+      "state": "ready",
+      "tags": {
+        "tension": 9,
+        "valence": "dark",
+        "energy": "driving",
+        "texture": [
+          "percussion"
+        ],
+        "vocal": "none",
+        "min_len": 180
+      },
+      "candidates": [
+        {
+          "song_id": 2654287964,
+          "title": "风平浪静的追逐",
+          "artist": "吴金城",
+          "album": "纯音乐spa",
+          "duration": 240,
+          "encrypted_id": "042741727E220280D86C7762E1D5A283",
+          "score": 9,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1485689754,
+          "title": "恐怖气氛",
+          "artist": "恐怖背景音乐",
+          "album": "恐怖的声音: 恐怖笑声, 鬼屋的声音, 黑暗环境和恐怖气氛的背景音乐",
+          "duration": 322,
+          "encrypted_id": "262B46755231EBB327D772171336856B",
+          "score": 4,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1425071184,
+          "title": "居心叵测",
+          "artist": "DoubleQ",
+          "album": "Begin",
+          "duration": 180,
+          "encrypted_id": "6884A2D9D9055694D8D06B9FDECC8695",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 421563066,
+          "title": "利马姑娘(秘鲁)",
+          "artist": "浦洁",
+          "album": "Gracias a la Vida",
+          "duration": 223,
+          "encrypted_id": "25DAA4FC94C92CD4EAC12568F5AFCED5",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1852243698,
+          "title": "念故乡",
+          "artist": "范宗沛",
+          "album": "夜星咏叹调－舒眠古典乐",
+          "duration": 322,
+          "encrypted_id": "B828D203AB70ABA35ABB8B0FA75174DC",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1334380163,
+          "title": "扭曲的梦境",
+          "artist": "森水垚",
+          "album": "梦魇师：克苏鲁的故事",
+          "duration": 207,
+          "encrypted_id": "D09E6257B5512B02790D4160F07AA179",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1847304631,
+          "title": "万圣 (《电锯人》印象曲)",
+          "artist": "StanLuo",
+          "album": "万圣",
+          "duration": 217,
+          "encrypted_id": "D8224E7E79ECCD0BD75CED86FDDBF7D6",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 544519444,
+          "title": "Arcane",
+          "artist": "Kevin MacLeod",
+          "album": "Traveller",
+          "duration": 323,
+          "encrypted_id": "9E17EDAB74AF249C24C61ED20E83A6E3",
+          "score": 1,
+          "intro_unknown": true
+        }
+      ],
+      "picks": {
+        "primary": {
+          "song_id": 2654287964,
+          "why": "纯音乐spa · 4分"
+        },
+        "alts": [
+          {
+            "song_id": 1485689754,
+            "why": "恐怖气氛"
+          },
+          {
+            "song_id": 1425071184,
+            "why": "居心叵测"
+          }
+        ]
+      },
+      "rejected": [],
+      "note": ""
+    },
+    {
+      "id": "c05",
+      "scene": "井边 · 收尾",
+      "trigger": "天亮了，井里只剩下水声",
+      "need_bgm": true,
+      "state": "ready",
+      "tags": {
+        "tension": 3,
+        "valence": "neutral",
+        "energy": "static",
+        "texture": [
+          "piano"
+        ],
+        "vocal": "none",
+        "min_len": 180
+      },
+      "candidates": [
+        {
+          "song_id": 3433945162,
+          "title": "安静 纯音乐",
+          "artist": "舞妖遁一",
+          "album": "只剩安静",
+          "duration": 180,
+          "encrypted_id": "B936ED3059B7FF76C5BF33FAA083164A",
+          "score": 9,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1369414886,
+          "title": "安静纯音乐",
+          "artist": "睡前音乐",
+          "album": "宝宝爱的纯音乐 - 小宝宝睡前必听的安静纯音乐为了深度睡觉",
+          "duration": 352,
+          "encrypted_id": "E255E0817D2265DD972BE9B79D2D1871",
+          "score": 9,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1363276955,
+          "title": "安静纯音乐",
+          "artist": "放鬆和安靜",
+          "album": "双脑冥想 - 最有效的冥想音乐为了集中注意力，和每天冥想",
+          "duration": 356,
+          "encrypted_id": "9D175007CECF5EEC62FA7DFE5EE2FB62",
+          "score": 9,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 526464757,
+          "title": "林杨 你还好吗",
+          "artist": "郭思达",
+          "album": "你好，旧时光 原声配乐大碟",
+          "duration": 197,
+          "encrypted_id": "8A9A09A8456299C7FD7F35C64E81E913",
+          "score": 8,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1880058883,
+          "title": "Calm Wind (Radio Edit)",
+          "artist": "Peder B. Helland",
+          "album": "Calm Wind (Radio Edit)",
+          "duration": 208,
+          "encrypted_id": "0B43AF34CE0DED96C200A71AD4DA5762",
+          "score": 5,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1485689754,
+          "title": "恐怖气氛",
+          "artist": "恐怖背景音乐",
+          "album": "恐怖的声音: 恐怖笑声, 鬼屋的声音, 黑暗环境和恐怖气氛的背景音乐",
+          "duration": 322,
+          "encrypted_id": "262B46755231EBB327D772171336856B",
+          "score": 4,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1364098958,
+          "title": "安靜純音樂",
+          "artist": "純正音源",
+          "album": "森林的聲音 - 虫鸣鸟叫，大自然聲音為了放鬆身體和早操",
+          "duration": 405,
+          "encrypted_id": "0EA65E5CF80E6DD938B61ED96669BF5F",
+          "score": 1,
+          "intro_unknown": true
+        },
+        {
+          "song_id": 1401354249,
+          "title": "風の手紙",
+          "artist": "春野杉卉",
+          "album": "ピンク·フォトブック",
+          "duration": 180,
+          "encrypted_id": "253EC74AFC40C51529298E0CF537A9E8",
+          "score": 1,
+          "intro_unknown": true
+        }
+      ],
+      "picks": {
+        "primary": {
+          "song_id": 3433945162,
+          "why": "只剩安静 · 3分"
+        },
+        "alts": [
+          {
+            "song_id": 1369414886,
+            "why": "安静纯音乐"
+          },
+          {
+            "song_id": 1363276955,
+            "why": "安静纯音乐"
+          }
+        ]
+      },
+      "rejected": [],
+      "note": ""
+    },
+    {
+      "id": "c06",
+      "scene": "回程 · 车马",
+      "trigger": "车队离开村子，没人回头",
+      "need_bgm": false,
+      "state": "skipped",
+      "tags": null,
+      "candidates": [],
+      "picks": null,
+      "rejected": [],
+      "note": ""
+    }
+  ],
+  "l1Shown": true,
+  "export": null
+}
