@@ -1,5 +1,25 @@
 # 变更记录
 
+## 0.9.0 — 2026-11-18
+
+**听感分析换代：CLAP 零样本 → music2emo（MERT + 监督头），目标改为模型原生标签。**
+
+- **描述层**：本地 music2emo 输出 56 个 Jamendo 情绪原词的 sigmoid 概率 + valence/arousal。
+  CPU 实测：模型加载 5 s、单曲解码 7 s、推理 25 s；结果按歌缓存，同一首歌只算一次。
+  安装见 README「听感分析」，全部落 `E:\Software\audioml-m2e`。
+- **词表**：不再有中文概念与映射表。场景的直接写模型认识的原生标签（`dark` / `dramatic` / `calm`…），
+  权重和为 1，最多 6 个；`$DSH_HOME/bgm-prep/moods.json` 是冻结的词表副本。
+- **实测缺口**：模型只有 56 个标签，Jamendo 59 里的 `horror` / `mellow` / `ambiental` 不在训练集。
+  「恐怖」改成 `dark + dramatic + heavy` 的组合。
+- **打分**：`Σ 权重 × 概率 / Σ 权重`，没有 softmax、没有二次映射；只做段内排序。
+- **数据**：schema 1 → 2；旧 `auto`（softmax 口径）读取时丢弃，旧 `tags/wants` 保留为原始描述，
+  缺 `target` 时自动推导。旧表可直接读，写回前自动 `.bak`。
+- **检索**：由目标标签反推中文检索词（检索要中文，打分要原生标签，两边刻意分开）。
+- **工具**：仍是 `bgm_init / fetch / tag / pick / view / commit` 六个；`bgm_tag` 内部改调 music2emo，
+  `bgm_init` 的 cue 支持 `target` 与 `vocal`。
+- **修**：`npm test` 之前会被 `tools/test-*.mjs` 一次性脚本拖住（`node --test` 的 glob 也匹配 `test-*.mjs`），
+  脚本改为 `node --test test/`。
+
 ## 0.8.0 — 2026-11-18
 
 **打标引擎换代：多句词表 + 多窗口 + 可自定义词表 + 阈值重校。**
