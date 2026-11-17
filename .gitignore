@@ -25,3 +25,6 @@ __pycache__/
 # repository that may be published.
 examples/_*.txt
 examples/*.bak-*
+
+# 临时导入的模组正文（从会话/别处导出的纯文本），不进仓库
+.tmp-*

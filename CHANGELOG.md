@@ -21,8 +21,6 @@
   安装见 README「听感分析」，全部落 `E:\Software\audioml-m2e`。
 - **词表**：不再有中文概念与映射表。场景的直接写模型认识的原生标签（`dark` / `dramatic` / `calm`…），
   权重和为 1，最多 6 个；`$DSH_HOME/bgm-prep/moods.json` 是冻结的词表副本。
-- **实测缺口**：模型只有 56 个标签，Jamendo 59 里的 `horror` / `mellow` / `ambiental` 不在训练集。
-  「恐怖」改成 `dark + dramatic + heavy` 的组合。
 - **打分**：`Σ 权重 × 概率 / Σ 权重`，没有 softmax、没有二次映射；只做段内排序。
 - **数据**：schema 1 → 2；旧 `auto`（softmax 口径）读取时丢弃，旧 `tags/wants` 保留为原始描述，
   缺 `target` 时自动推导。旧表可直接读，写回前自动 `.bak`。

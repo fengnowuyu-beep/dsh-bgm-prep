@@ -98,8 +98,6 @@
 
 - **实测：模型只有 56 个标签**（`tag_list.npy` 共 183 条，取 `[127:]` 得 56 条 mood/theme）。
 - 标签是 Jamendo mood/theme 的原生英文词：`dark` `dramatic` `calm` `epic` `sad` `space` `groovy` ……
-- **Jamendo 的 59 个里有三个不在模型训练集里：`horror`、`mellow`、`ambiental`。**
-  所以「恐怖」必须落成 `dark + dramatic + heavy` 的组合；写 `horror` 会被词表校验过滤掉。
 - **不做中文转写、不做二次映射**：屏幕上的词就是模型认识的词。
 
 ---
