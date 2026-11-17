@@ -318,6 +318,7 @@ dsh-bgm-prep/
     match.js        （保留）旧的中文概念映射，仅 CLAP 兜底用
   tools/m2e/analyze.py   music2emo 推理（Python 侧）
   tools/tag/analyze.py   （保留）CLAP 推理
+  skills/bgm-prep/       会话用的 skill：流程 + 词表快照（软链到 $DSH_HOME/skills）
   scripts/setup.mjs      凭据 / 登录 / 自检
   test/                  单元测试
   docs/                  交互协议与设计记录
