@@ -4,7 +4,8 @@
   stdin  { "tracks": [{"song_id": 1, "url": "https://...", "title": "..."}],
            "code": "E:\\Software\\audioml-m2e\\music2emo",
            "models": "E:\\Software\\audioml-m2e\\models",
-           "cache": {"dir": "...", "version": "music2emo-v1", "max_bytes": 5368709120} }
+           "cache": {"dir": "...", "version": "music2emo-v1", "max_bytes": 5368709120,
+                     "concurrency": 3} }
   stdout NDJSON，一行一首，算完立即 flush：
     {"song_id": 1, "result": {"probs": {"horror": 0.7, ...},
                               "va": {"valence": 2.1, "arousal": 5.8},
@@ -33,6 +34,7 @@ import sys
 import tempfile
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -224,6 +226,12 @@ def main():
                "trace": traceback.format_exc()[-800:]})
         return
 
+    try:
+        download_concurrency = int(cache_cfg.get("concurrency") or 3)
+    except (TypeError, ValueError):
+        download_concurrency = 3
+    download_concurrency = max(1, min(8, download_concurrency))
+
     tmp_dir = ""
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
@@ -232,27 +240,34 @@ def main():
         # 没有缓存目录（老调用/测试）：用临时目录，跑完删掉
         tmp_dir = tempfile.mkdtemp(prefix="m2e-")
 
+    def prepare(track):
+        """下载/解码一首到缓存（或临时目录）；缓存命中直接返回路径。"""
+        sid = track.get("song_id")
+        url = str(track.get("url") or "")
+        if cache_dir:
+            final = _cache_file(cache_dir, sid, cache_version)
+            if _is_complete(final):
+                _touch(final)
+                return final
+            if not url:
+                raise RuntimeError("no playable url")
+            return _ensure_wav(url, final)
+        if not url:
+            raise RuntimeError("no playable url")
+        wav = os.path.join(tmp_dir, f"{int(sid)}.wav")
+        _fetch_and_decode(url, wav)
+        return wav
+
     count = 0
+    pool = ThreadPoolExecutor(max_workers=download_concurrency)
     try:
-        for track in tracks:
+        # F5：下载/解码并发跑，推理仍按顺序。第一批的下载会被模型加载/推理盖住，
+        # 后面的歌则在上一首推理时就已经落到缓存里。
+        futures = [pool.submit(prepare, track) for track in tracks]
+        for index, track in enumerate(tracks):
             sid = track.get("song_id")
             try:
-                url = str(track.get("url") or "")
-                if cache_dir:
-                    final = _cache_file(cache_dir, sid, cache_version)
-                    if _is_complete(final):
-                        _touch(final)
-                        wav = final
-                    else:
-                        if not url:
-                            raise RuntimeError("no playable url")
-                        wav = _ensure_wav(url, final)
-                else:
-                    if not url:
-                        raise RuntimeError("no playable url")
-                    wav = os.path.join(tmp_dir, f"{int(sid)}.wav")
-                    _fetch_and_decode(url, wav)
-
+                wav = futures[index].result()
                 out = model.predict(wav)
                 probs = out.get("probs") or []
                 _emit({
@@ -270,10 +285,12 @@ def main():
             except Exception as exc:  # noqa: BLE001
                 _emit({"song_id": sid, "result": {"error": f"{type(exc).__name__}: {str(exc)[:160]}"}})
             count += 1
-            if cache_dir and cache_max_bytes > 0:
-                _enforce_cache(cache_dir, cache_max_bytes)
         _emit({"done": True, "count": count})
     finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+        # 容量淘汰放在整批之后：避免删掉正在排队推理的 wav
+        if cache_dir and cache_max_bytes > 0:
+            _enforce_cache(cache_dir, cache_max_bytes)
         if tmp_dir:
             try:
                 shutil.rmtree(tmp_dir)

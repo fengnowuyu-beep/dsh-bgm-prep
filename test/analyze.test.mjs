@@ -202,6 +202,7 @@ test('音频缓存与线程数传给 Python', async () => {
   assert.equal(log[0].cache.dir, path.join(home, 'bgm-prep', 'cache', 'audio'))
   assert.equal(log[0].cache.version, 'test-v1')
   assert.equal(log[0].cache.max_bytes, 5 * 1024 * 1024 * 1024)
+  assert.equal(log[0].cache.concurrency, 3)
   assert.equal(log[0].threads, '2')
 })
 
