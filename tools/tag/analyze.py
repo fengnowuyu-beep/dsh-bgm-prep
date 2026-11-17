@@ -154,7 +154,14 @@ def main():
             vprobs = ((audio_embed @ vocal_embed.T).squeeze(0) * scale).softmax(dim=-1).tolist()
 
             scored = list(zip(all_texts, probs))
-            ranked = sorted(scored, key=lambda item: -item[1])[:3]
+            # 去重：不同 prompt 可能映射到同一个中文标签（acoustic folk guitar / acoustic folk music），
+            # 只保留分数最高的那条，否则页面上会出现两个「民谣木吉他」。
+            by_label = {}
+            for text_key, score in sorted(scored, key=lambda item: -item[1]):
+                label = label_of.get(text_key, text_key)
+                if label not in by_label:
+                    by_label[label] = score
+            ranked = list(by_label.items())[:3]
 
             # 这一段期望词上的最高分 = 匹配度
             wanted = [str(i.get("text") or "") for i in (track.get("prompts") or []) if str(i.get("text") or "") != ""]
@@ -168,11 +175,11 @@ def main():
                 match, match_label = ranked[0][1], label_of.get(ranked[0][0], ranked[0][0])
 
             results[str(song_id)] = {
-                "top": [[label_of.get(t, t), round(s, 3)] for t, s in ranked],
+                "top": [[label, round(score, 3)] for label, score in ranked],
                 "match": round(match, 3),
                 "matchLabel": match_label,
                 "vocal": round(vprobs[1], 3),
-                "margin": round(ranked[0][1] - ranked[1][1], 3),
+                "margin": round(ranked[0][1] - ranked[1][1], 3) if len(ranked) > 1 else 1.0,
             }
         except Exception as exc:  # noqa: BLE001
             results[str(song_id)] = {"error": f"{type(exc).__name__}: {exc}"}
