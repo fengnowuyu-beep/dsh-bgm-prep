@@ -1,0 +1,79 @@
+[
+  {
+    "scene": "进山的土路 · 黄昏",
+    "trigger": "越往山谷里走，遇到的当地人越原始、越排外",
+    "wants": ["乡村 荒凉 不安 黄昏"],
+    "tags": { "tension": 5, "valence": "dark", "energy": "static", "texture": ["folk"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "密斯卡托尼克山口 · 大地的心跳",
+    "trigger": "困难 POW 检定后，你听见大地深处每四十秒一次的搏动",
+    "wants": ["低频 心跳 地脉 压迫"],
+    "tags": { "tension": 8, "valence": "dark", "energy": "static", "texture": ["drone"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "黑水溪镇 · 入夜的街道",
+    "trigger": "天色全黑，木板房的格子窗后面有人在看你",
+    "wants": ["寂静 空荡 敌意 小镇"],
+    "tags": { "tension": 6, "valence": "dark", "energy": "static", "texture": ["drone"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "贾维农场 · 借宿一夜",
+    "trigger": "镇上最正派的一家人，愿意留你们过夜",
+    "wants": ["乡村 木吉他 温暖"],
+    "tags": { "tension": 3, "valence": "neutral", "energy": "static", "texture": ["folk"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "梦境 · 母亲的声音",
+    "trigger": "她用你母亲的声音在洞外喊你；你被什么东西包住，喘不上气",
+    "wants": ["催眠 摇篮曲 扭曲 人声"],
+    "tags": { "tension": 7, "valence": "dark", "energy": "static", "texture": ["choir"], "vocal": "wordless", "min_len": 240 }
+  },
+  {
+    "scene": "罗德斯营地 · 挖掘现场",
+    "trigger": "学者的帐篷、被翻开的土层、还有一股说不清的味道",
+    "wants": ["学者 泥土 不安 管弦"],
+    "tags": { "tension": 5, "valence": "neutral", "energy": "building", "texture": ["strings"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "小溪与森林 · 异常繁茂",
+    "trigger": "草长得和胳膊一样粗，浆果裂开的果肉里爬满虫子",
+    "wants": ["潮湿 繁茂 腐甜 虫群"],
+    "tags": { "tension": 7, "valence": "dark", "energy": "static", "texture": ["drone"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "干河床 · 干裂的泥",
+    "trigger": "河床早干了，裂缝里有什么东西在动",
+    "need_bgm": false
+  },
+  {
+    "scene": "卡莫迪农场 · 蒸馏房",
+    "trigger": "铜管、蒸汽、还有一桶桶不该被酿出来的酒",
+    "wants": ["机械 蒸汽 乡村 压迫"],
+    "tags": { "tension": 6, "valence": "dark", "energy": "building", "texture": ["percussion"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "母神赠礼发作 · 幻觉与身体",
+    "trigger": "溪水开始在你体内说话，你的身体不再是你的",
+    "wants": ["不协和 扭曲 低频 恐怖"],
+    "tags": { "tension": 9, "valence": "dark", "energy": "building", "texture": ["drone", "synth"], "vocal": "none", "min_len": 240 }
+  },
+  {
+    "scene": "洞穴 · 大地子宫",
+    "trigger": "石壁上的黏液发出淡紫色磷光，水潭里有白色斑点蠕动",
+    "wants": ["巨大 潮湿 脉动 合唱"],
+    "tags": { "tension": 10, "valence": "dark", "energy": "static", "texture": ["drone", "choir"], "vocal": "wordless", "min_len": 240 }
+  },
+  {
+    "scene": "结局 · 火与崩塌",
+    "trigger": "炸药点燃，母神之子从洞里涌出来",
+    "wants": ["末世 燃烧 崩塌 追逐"],
+    "tags": { "tension": 10, "valence": "dark", "energy": "burst", "texture": ["percussion"], "vocal": "none", "min_len": 180 }
+  },
+  {
+    "scene": "尾声 · 山谷重新安静",
+    "trigger": "车开上土路，后视镜里只剩树",
+    "wants": ["余烬 空旷 忧伤 长音"],
+    "tags": { "tension": 3, "valence": "dark", "energy": "static", "texture": ["piano"], "vocal": "none", "min_len": 240 }
+  }
+]
