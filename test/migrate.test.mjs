@@ -69,3 +69,36 @@ test('写回后落盘为 schema 2，且不再出现 auto', async () => {
     await fsp.rm(dir, { recursive: true, force: true })
   }
 })
+
+test('描述没命中关键词 → targetSource = none，目标给 calm', async () => {
+  const { dir, file } = await tmpFile({
+    schema: 1, module: 'M', scope: 's1', cues: [{ scene: '夜航的货轮', trigger: '海面很平', need_bgm: true }]
+  })
+  try {
+    const sheet = await readSheet(file)
+    const cue = sheet.cues[0]
+    assert.equal(cue.targetSource, 'none')
+    assert.deepEqual(cue.target, [{ tag: 'calm', weight: 1 }])
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('手写 target 里的词表外标签被丢弃，并记进 targetDropped', async () => {
+  const { dir, file } = await tmpFile({
+    schema: 2, module: 'M', scope: 's1', cues: [{
+      id: 'c01', scene: '洞穴', need_bgm: true,
+      target: [{ tag: 'horror', weight: 0.6 }, { tag: 'dark', weight: 0.4 }]
+    }]
+  })
+  try {
+    const sheet = await readSheet(file)
+    const cue = sheet.cues[0]
+    assert.equal(cue.targetSource, 'manual')
+    assert.deepEqual(cue.targetDropped, ['horror'])
+    assert.deepEqual(cue.target.map((t) => t.tag), ['dark'])
+    assert.equal(cue.target[0].weight, 1)
+  } finally {
+    await fsp.rm(dir, { recursive: true, force: true })
+  }
+})
