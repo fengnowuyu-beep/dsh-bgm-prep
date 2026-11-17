@@ -1,5 +1,28 @@
 # 变更记录
 
+## 0.11.0 — 2026-11-18
+
+**听感分析分批 + 增量落库：中断不再全损。**
+
+- `tools/m2e/analyze.py` 的输出从「结尾一个 JSON」改成 **NDJSON，一行一首、算完立即 flush**；
+  `lib/analyze.js` 收到一行就写一次 `analysis.db`。任何中断最多损失当前这一首
+  （旧版 20 分钟超时一杀，整批 13 首全作废）。
+- `bgm_tag` 新增 `max_songs`（默认 24）；内部按 `batchSize`（默认 8）分批 spawn，
+  单次超时的损失上界从整批降到一批。返回体新增 `partial` / `remaining` / `stopReason` / `batches`，
+  没跑完时明确告诉 agent「还剩多少、再调一次」。
+- 超时改成推导值：单首 `perSongTimeoutMs`（默认 180 秒）只放弃当前这一首，剩下的重开一批继续；
+  整次预算 `min(perSongTimeoutMs × 1.5 × 本次首数, totalBudgetMs)`（默认封顶 90 分钟），
+  到点优雅收尾并保留已落库结果。旧的 `analysis.timeoutMs` 仍兼容，当作总预算上限。
+- 音频缓存：解码后的 24 kHz mono wav 落在 `$DSH_HOME/bgm-prep/cache/audio/<song_id>-<版本>.wav`，
+  命中不再下载；默认 5 GB，按 mtime LRU 淘汰。`%TEMP%` 下不再新增 `m2e-*`，异常残留的 `.part-*`
+  一小时后自动清理。
+- `analysis.db` 不可用（或写入失败）时自动退回旧 JSON 缓存，`bgm_tag` 用 `store` / `storeFailed`
+  标出来，不再静默丢结果。
+- 推理线程数可配（`threads`，默认 16），子进程注入 `M2E_THREADS` / `OMP_NUM_THREADS` /
+  `MKL_NUM_THREADS`，纯 CPU 路径少留性能。
+- 新增 11 个测试（NDJSON 解析、partial 保留、批次切分、单首超时、old JSON 兜底、
+  缓存命中、音频缓存真实落盘），共 55 个。
+
 ## 0.10.0 — 2026-11-18
 
 **标签显示中文 + 分析结果入库（SQLite）。**

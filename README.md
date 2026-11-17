@@ -203,6 +203,12 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 
 CPU 实测：模型加载 5 秒、单曲解码 7 秒、推理 25 秒。结果写进 `$DSH_HOME/bgm-prep/analysis.db`（SQLite），同一首歌只分析一次，所有曲目表、所有会话共用；旧 JSON 缓存首次读取时自动迁入。
 
+**分批与中断安全**（0.11）：`bgm_tag` 每次默认最多分析 **24 首**（`max_songs`），内部每 **8 首**一批 spawn 一次；每算完一首立即入库，进程被杀最多损失当前这一首。没跑完时返回 `partial: true` 和 `remaining`，再调一次接着跑。单首超过 `perSongTimeoutMs`（默认 180 秒）只放弃这一首，剩下的重开一批继续；整次预算为 `min(perSongTimeoutMs × 1.5 × 本次首数, totalBudgetMs)`（默认封顶 90 分钟），到点优雅收尾并保留已落库结果。
+
+**音频缓存**：解码后的 24 kHz mono wav 落在 `$DSH_HOME/bgm-prep/cache/audio/<song_id>-<版本>.wav`，同一首歌重跑不再下载；默认上限 5 GB，按最近使用时间淘汰。`%TEMP%` 下不再留 `m2e-*`。`analysis.db` 不可用时自动退回 JSON 缓存，返回值里的 `store` 会标出来。
+
+以上都能在 `settings.json` 的 `analysis` 段覆盖：`perSongTimeoutMs`、`totalBudgetMs`、`batchSize`、`threads`、`audioCacheMaxBytes`。
+
 **它擅长**：判断实际气质（够不够 dark、是不是 epic、偏 sad 还是 happy）。
 **它不擅长**：判得绝对准确（Jamendo 56 类 macro PR-AUC 0.15 是公开天花板），所以只用于段内排序。
 
