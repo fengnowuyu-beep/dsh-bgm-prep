@@ -32,9 +32,10 @@ test('没有任何标签和 wants 时给一条兜底', () => {
 
 test('匹配度分档', () => {
   assert.equal(matchLevel(0.9), 'good')
-  assert.equal(matchLevel(0.35), 'good')
-  assert.equal(matchLevel(0.3), 'fair')
-  assert.equal(matchLevel(0.2), 'fair')
+  assert.equal(matchLevel(0.5), 'good')
+  assert.equal(matchLevel(0.4), 'fair')
+  assert.equal(matchLevel(0.25), 'fair')
   assert.equal(matchLevel(0.05), 'poor')
   assert.equal(matchLevel(undefined), 'unknown')
 })
+

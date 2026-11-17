@@ -1,27 +1,25 @@
 """
-CLAP 打标器：读 stdin 的 JSON 任务，输出 JSON 结果到 stdout。
+CLAP 打标器（v2）：多窗口 + 概念化的多句词表。
 
 输入：
 {
-  "tracks": [{
-    "song_id": 123,
-    "title": "...",
-    "url": "已签名的播放直链，可空",
-    "prompts": [{"text": "dark ambient drone", "label": "暗色氛围"}]   # 这一段期望的词表
-  }],
-  "cookie": "完整 cookie 串（url 为空时的兜底用）"
+  "tracks": [{"song_id": 1, "title": "...", "url": "直链", "expect": ["轻快", "安静钢琴"]}],
+  "concepts": [{"label": "轻快", "prompts": ["...", "..."]}, ...],
+  "cookie": "完整 cookie（url 为空时兜底）"
 }
 
 输出：
 {"results": {"<song_id>": {
-  "top": [["恐怖配乐", 0.87], ...],   # 整体像什么（全词表打分）
-  "match": 0.62,                       # 落在「这一段期望词」上的最高分
-  "matchLabel": "暗色氛围",
+  "top": [["恐怖配乐", 0.87], ...],   # 整体像什么（对全部概念打分）
+  "match": 0.62,                       # 落在 expect 那几个概念上的最高分
+  "matchLabel": "紧张悬疑",
   "vocal": 0.22,
   "margin": 0.79
 }}}
 
-约束：不写文件、不实现网易云签名（签名在 Node 侧做，这里只下载），全部靠 stdin/stdout 通信。
+两个关键改进：
+1. 音频取**开头/中间/结尾各 20 秒**，三个向量平均——只听中段会撞上间奏。
+2. 每个概念由 3–5 个英文说法平均成一个向量——一句话会把语感锁死。
 """
 import io
 import json
@@ -33,29 +31,19 @@ os.environ.setdefault("HF_HOME", r"E:\Software\audioml\models")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-# 全局兜底词表：即使某段没给 prompts，也能说出"像什么"
-FALLBACK_PROMPTS = [
-    ("instrumental music without vocals", "器乐"),
-    ("calm gentle piano music", "安静钢琴"),
-    ("tense suspenseful music", "紧张悬疑"),
-    ("dark ambient drone", "暗色氛围"),
-    ("epic orchestral music", "史诗管弦"),
-    ("aggressive intense music", "激烈攻击"),
-    ("sad melancholic music", "忧伤"),
-    ("feel-good upbeat music", "轻快"),
-    ("groovy rhythmic dance music", "律动"),
-    ("horror soundtrack", "恐怖配乐"),
-    ("acoustic folk music", "民谣木吉他"),
-    ("electronic pulse and signal tones", "电子脉冲"),
-]
+MODEL = "laion/larger_clap_music_and_speech"
 VOCAL_PROMPTS = [
     "instrumental music without any singing",
     "music with a person singing or rapping",
 ]
-MODEL = "laion/larger_clap_music_and_speech"
-
+WINDOW_SECONDS = 20
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+
+FALLBACK_CONCEPTS = [
+    {"label": "器乐", "prompts": ["instrumental music without vocals"]},
+    {"label": "轻快", "prompts": ["feel-good upbeat music"]},
+]
 
 
 def headers(cookie=""):
@@ -66,7 +54,6 @@ def headers(cookie=""):
 
 
 def fetch_audio(track, cookie):
-    """优先用 Node 侧换好的直链；没有才走匿名兜底。"""
     url = str(track.get("url") or "")
     song_id = track.get("song_id")
     candidates = []
@@ -90,6 +77,16 @@ def fetch_audio(track, cookie):
     return None
 
 
+def pick_windows(y, sr):
+    """开头 / 中间 / 结尾各取一段，避开片头淡入和片尾淡出。"""
+    span = sr * WINDOW_SECONDS
+    if len(y) <= span:
+        return [y]
+    tail = max(0, len(y) - span - int(sr * 1.5))
+    mid = max(0, (len(y) - span) // 2)
+    return [y[:span], y[mid:mid + span], y[tail:tail + span]]
+
+
 def main():
     job = json.load(sys.stdin)
     tracks = job.get("tracks") or []
@@ -98,23 +95,25 @@ def main():
         return
     cookie = (job.get("cookie") or "").strip()
 
-    # 词表：全局兜底 + 各段专属，按 text 去重
-    label_of = {text: label for text, label in FALLBACK_PROMPTS}
-    for track in tracks:
-        for item in track.get("prompts") or []:
-            text = str(item.get("text") or "").strip()
-            if text != "":
-                label_of.setdefault(text, str(item.get("label") or text)[:24])
-    all_texts = list(label_of.keys())
+    concepts = []
+    seen = set()
+    for item in (job.get("concepts") or FALLBACK_CONCEPTS):
+        label = str(item.get("label") or "").strip()
+        prompts = [str(p).strip() for p in (item.get("prompts") or []) if str(p).strip()]
+        if label == "" or not prompts or label in seen:
+            continue
+        seen.add(label)
+        concepts.append({"label": label, "prompts": prompts})
+    if not concepts:
+        concepts = FALLBACK_CONCEPTS
 
     import librosa
+    import numpy as np
     import torch
     from transformers import ClapModel, ClapProcessor
 
     processor = ClapProcessor.from_pretrained(MODEL)
     model = ClapModel.from_pretrained(MODEL).eval()
-    text = processor(text=all_texts, return_tensors="pt", padding=True)
-    text_vocal = processor(text=VOCAL_PROMPTS, return_tensors="pt", padding=True)
     scale = model.logit_scale_a.exp().item()
 
     def embed(output):
@@ -126,11 +125,20 @@ def main():
                 return value
         raise TypeError(type(output).__name__)
 
-    with torch.no_grad():
-        text_embed = embed(model.get_text_features(**text))
-        text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)
-        vocal_embed = embed(model.get_text_features(**text_vocal))
-        vocal_embed = vocal_embed / vocal_embed.norm(dim=-1, keepdim=True)
+    def text_embed(texts):
+        with torch.no_grad():
+            e = embed(model.get_text_features(**processor(text=texts, return_tensors="pt", padding=True)))
+        return e / e.norm(dim=-1, keepdim=True)
+
+    # 每个概念：多个说法的向量取平均，再归一化
+    concept_matrix = []
+    for concept in concepts:
+        vecs = text_embed(concept["prompts"]).mean(dim=0)
+        concept_matrix.append(vecs / vecs.norm())
+    concept_matrix = torch.stack(concept_matrix)
+
+    vocal_matrix = text_embed(VOCAL_PROMPTS)
+    label_index = {c["label"]: i for i, c in enumerate(concepts)}
 
     results = {}
     for track in tracks:
@@ -140,39 +148,34 @@ def main():
             if not raw or len(raw) < 20000:
                 results[str(song_id)] = {"error": "audio unavailable"}
                 continue
-            y, sr = librosa.load(io.BytesIO(raw), sr=48000, mono=True, duration=45)
+            y, sr = librosa.load(io.BytesIO(raw), sr=48000, mono=True, duration=180)
             if y.size < sr * 5:
                 results[str(song_id)] = {"error": "audio too short"}
                 continue
-            mid = max(0, (len(y) - sr * 30) // 2)
-            clip = y[mid: mid + sr * 30]
-            inputs = processor(audio=clip, sampling_rate=48000, return_tensors="pt")
+
+            window_vecs = []
             with torch.no_grad():
-                audio_embed = embed(model.get_audio_features(**inputs))
-            audio_embed = audio_embed / audio_embed.norm(dim=-1, keepdim=True)
-            probs = ((audio_embed @ text_embed.T).squeeze(0) * scale).softmax(dim=-1).tolist()
-            vprobs = ((audio_embed @ vocal_embed.T).squeeze(0) * scale).softmax(dim=-1).tolist()
+                for clip in pick_windows(y, sr):
+                    inputs = processor(audio=clip, sampling_rate=48000, return_tensors="pt")
+                    vec = embed(model.get_audio_features(**inputs))
+                    window_vecs.append(vec / vec.norm(dim=-1, keepdim=True))
+            audio = torch.stack(window_vecs).mean(dim=0)
+            audio = audio / audio.norm()
 
-            scored = list(zip(all_texts, probs))
-            # 去重：不同 prompt 可能映射到同一个中文标签（acoustic folk guitar / acoustic folk music），
-            # 只保留分数最高的那条，否则页面上会出现两个「民谣木吉他」。
-            by_label = {}
-            for text_key, score in sorted(scored, key=lambda item: -item[1]):
-                label = label_of.get(text_key, text_key)
-                if label not in by_label:
-                    by_label[label] = score
-            ranked = list(by_label.items())[:3]
+            sims = (audio @ concept_matrix.T).squeeze(0) * scale
+            probs = sims.softmax(dim=-1).tolist()
+            vprobs = ((audio @ vocal_matrix.T).squeeze(0) * scale).softmax(dim=-1).tolist()
 
-            # 这一段期望词上的最高分 = 匹配度
-            wanted = [str(i.get("text") or "") for i in (track.get("prompts") or []) if str(i.get("text") or "") != ""]
-            by_text = dict(scored)
+            ranked = sorted(zip([c["label"] for c in concepts], probs), key=lambda item: -item[1])[:3]
+
+            expect = [str(label) for label in (track.get("expect") or []) if str(label) in label_index]
             match, match_label = 0.0, ""
-            for text in wanted:
-                score = by_text.get(text, 0.0)
+            for label in expect:
+                score = probs[label_index[label]]
                 if score > match:
-                    match, match_label = score, label_of.get(text, text)
-            if not wanted:
-                match, match_label = ranked[0][1], label_of.get(ranked[0][0], ranked[0][0])
+                    match, match_label = score, label
+            if not expect:
+                match, match_label = ranked[0][1], ranked[0][0]
 
             results[str(song_id)] = {
                 "top": [[label, round(score, 3)] for label, score in ranked],
