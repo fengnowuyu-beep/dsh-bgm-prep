@@ -201,7 +201,7 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 }
 ```
 
-CPU 实测：模型加载 5 秒、单曲解码 7 秒、推理 25 秒；结果按歌缓存，同一首歌只算一次。
+CPU 实测：模型加载 5 秒、单曲解码 7 秒、推理 25 秒。结果写进 `$DSH_HOME/bgm-prep/analysis.db`（SQLite），同一首歌只分析一次，所有曲目表、所有会话共用；旧 JSON 缓存首次读取时自动迁入。
 
 **它擅长**：判断实际气质（够不够 dark、是不是 epic、偏 sad 还是 happy）。
 **它不擅长**：判得绝对准确（Jamendo 56 类 macro PR-AUC 0.15 是公开天花板），所以只用于段内排序。
@@ -227,6 +227,8 @@ CPU 实测：模型加载 5 秒、单曲解码 7 秒、推理 25 秒；结果按
 
 想在别处换一套词表，替换 `moods.json` 即可（结构 `{"version":"...","tags":["dark","calm",…]}`），
 但必须是模型认识的那 56 个词——模型只输出这些。
+
+工作台和表格里标签**显示中文**（`黑暗 0.40` / `戏剧张力 0.30`），数据里仍存英文标签——中文只是显示名，不参与校验。
 
 建表时如果某段的中文描述没命中任何关键词，表格与工作台会标「**描述未命中标签**」（目标先用 `calm`）；
 显式写的标签不在 56 个词里，会被丢弃并在建表返回里提示。
@@ -311,6 +313,8 @@ dsh-bgm-prep/
     filter.js       归一化、去噪、去重、打分
     store.js        曲目表读写、校验、派生状态
     format.js       三种导出格式
+    tagLabels.js    56 个标签的中文显示名
+    analysisDb.js   分析结果 SQLite 库（song_id + engine）
     tag.js          （保留）CLAP 兜底：换直链、起 Python
     match.js        （保留）旧的中文概念映射，仅 CLAP 兜底用
   tools/m2e/analyze.py   music2emo 推理（Python 侧）

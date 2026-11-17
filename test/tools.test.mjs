@@ -43,7 +43,7 @@ test('端到端（离线四件套）：init → view → pick → commit', async
   assert.equal(init.cueCount, 3)
   assert.equal(init.needBgmCount, 2)
   assert.match(init.table, /第 1 段/)
-  assert.match(init.table, /\[(dark|calm|drone)/, '目标标签应出现在 L1 表里')
+  assert.match(init.table, /\[(黑暗|平静)/, '目标标签应出现在 L1 表里')
   assert.ok(fs.existsSync(file))
 
   const again = await tools.get('bgm_init').execute({ file, module: 'x', scope: 's3-act3', cues: [{ scene: 'z' }] }, exec)
