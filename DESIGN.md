@@ -1,5 +1,9 @@
 # 插件设计：跑团配乐·备团（`dsh-bgm-prep`）v3.3
 
+> ⚠️ **已过时，仅作历史记录**：当前设计与实现以 [docs/DESIGN-v4.md](docs/DESIGN-v4.md)、
+> [README.md](README.md)、[docs/WORKFLOW.md](docs/WORKFLOW.md) 为准（实现已到 0.12.x）。
+> 本文里的工具名（`bgm_create` 等）、数据模型（`version: 1` / `pick`）都已不存在，不要照它施工。
+
 > 状态：**已实现，已安装，17 项测试通过。** 未完成的是「重启后在生产里跑一遍真模组」。
 > v3.2 是按「自研软件与工具开发团」6 人审查结果修订的版本；**v3.3 是按实测结果改的**：
 > 数据类操作从开放平台 HTTP 改走 `ncm-cli` 动态命令，`bgm_commit` 从「导出清单」改成「真建歌单」。

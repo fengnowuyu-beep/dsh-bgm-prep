@@ -113,4 +113,12 @@ test('表里用「第 k 段」，且不出现 c0x', () => {
   assert.doesNotMatch(l1, /c01/)
   assert.match(l1, /不配乐/)
 })
-
+test('prepareCandidates：avoidKeywords 命中的曲目被压下去', () => {
+  const mk = (id, title) => ({ song_id: id, title, artist: 'X', album: '', duration: 240 })
+  const picked = prepareCandidates([mk(1, 'Night Watch (Vocal Mix)'), mk(2, 'Night Watch')], {
+    tags: { energy: 'static', valence: 'dark' },
+    avoidKeywords: ['vocal'],
+    limit: 2
+  })
+  assert.equal(picked[0].song_id, 2)
+})

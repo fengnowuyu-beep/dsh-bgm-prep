@@ -3,6 +3,8 @@
 > 性质：**设计文档**。从零设计，不继承现有实现。
 > **v4.3 变更**：取消「20 个中文词 → Jamendo 映射」，**场景直接使用 music2emo 的原生标签与权重**。
 > 目标：备团时十分钟内把「每段戏配什么」定下来，并生成能直接放的网易云歌单。
+> **同步至 0.12.2（2026-11-18）**：数据模型补 `avoidTargets`、打分补负向标签乘性惩罚、
+> 分析流程与工具面按实际实现更正；仍有出入时以 `README.md` / `docs/WORKFLOW.md` / `lib/*.js` 为准。
 
 ---
 
@@ -64,29 +66,33 @@
 
 ```jsonc
 {
-  "version": 1, "module": "黑水溪", "session": 2, "scope": "s2",
+  "schema": 2, "module": "黑水溪", "session": 2, "scope": "s2",
   "cues": [{
     "id": "c01",
     "scene": "密斯卡托尼克山口 · 大地的心跳",
+    "need_bgm": true,
     "target": [
       { "tag": "dark",   "weight": 0.40 },
       { "tag": "dramatic", "weight": 0.25 },
       { "tag": "heavy",  "weight": 0.20 },
       { "tag": "calm",   "weight": 0.15 }
     ],
+    "avoidTargets": [
+      { "tag": "happy",  "weight": 0.60 },
+      { "tag": "upbeat", "weight": 0.40 }
+    ],
     "vocal": "none",
-    "need": true,
     "candidates": [{
       "song_id": 785793, "title": "…", "artist": "…", "duration": 214,
       "source": "歌单「恐怖 纯音乐」",
       "analysis": {
         "probs": { "dark": 0.72, "dramatic": 0.58, "calm": 0.41, "happy": 0.02 }, // 模型原生 56 维
         "va": { "valence": 2.1, "arousal": 5.8 },
-        "vocal": 0.42, "stability": 0.11,
-        "engine": "music2emo|v1", "at": "…"
+        "vocal": 0.71, "stability": null,
+        "engine": "music2emo-v1", "at": "…"
       }
     }],
-    "pick": { "song_id": 785793, "title": "…" },
+    "picks": { "primary": { "song_id": 785793, "title": "…", "why": "低频垫底，弦乐中段才抬一次" } },
     "rejected": []
   }]
 }
@@ -257,17 +263,22 @@ E:\Software\audioml-m2e\Scripts\pip install mir_eval pretty_midi
 ### 7.4 分析流程
 
 ```
-song_id → 直链 → 下载（≤4 min, 24 kHz）
-        → 切 30 秒段（最多 8 段，跳首尾 3 秒）
-        → BTC 和弦 + MERT 特征 → J_all 头 → 各标签概率
-                              → D_all 头 → valence/arousal
-        → 多段取平均；stability = 段间极差
-        → 缓存
+song_id → 直链 → 下载整首（常见 10–60 MB）
+        → 解码 24 kHz mono wav（落缓存）
+        → 切 30 秒不重叠段（只留满 30 秒的段；整首 <30 秒则整首一段）
+        → BTC 和弦（整首跑完，只取前 100 个和弦事件）
+        + MERT 特征（逐段取第 5/6 层）→ 各段 embedding 等权平均
+        → J_all 头 → 56 维 sigmoid 概率
+        → D_all 头 → valence/arousal
+        → CLAP 人声二分类（6 个固定 10 秒窗口，取最大）→ vocal
+        → 写 analysis.db（song_id + engine 作键）
 ```
 
-- 按歌缓存：`cache/analysis/<song_id>-<m2eVer>.json`。
+- 按歌缓存：`$DSH_HOME/bgm-prep/analysis.db`；解码后的 wav 在 `cache/audio/<song_id>-<版本>.wav`。
 - 拿不到直链 → `analysis: null`，排序垫底。
-- 单曲 CPU 耗时：每 30 秒段数秒，整曲十几秒量级（**未实测**，第 3 步记录）。
+- `stability` 恒为 `null`（上游只给平均后的结果，没有段间方差）。
+- 本机实测（2026-11-18，RTX 3060 Ti / cu121，5–7 分钟曲目）：整曲推理 **3.4–6.4 秒**；若只取 3×10 秒片段则 **0.42–0.48 秒**，
+  但段内排序会明显变化，未采用（实验见 `docs/test-findings-2026-11-18.md` 文末附录）。
 
 ---
 
@@ -276,13 +287,18 @@ song_id → 直链 → 下载（≤4 min, 24 kHz）
 ### 8.1 打分
 
 ```
-得分 = Σ w_t · p_t(song) / Σ w_t
+base  = Σ w⁺ₜ · pₜ(song) / Σ w⁺ₜ
+score = base × (1 − k · Σ w⁻ₜ · pₜ) × vocalFactor
 ```
 
-- `w_t`：这段给的标签权重；`p_t`：模型对该标签的概率。
+- `w⁺`：这段的正向标签权重；`w⁻`：负向标签（`avoidTargets`）权重，按实际数量归一化到和为 1。
 - **没有二次映射**：权重直接乘在模型输出上。
-- 人声：`vocal: none` 且 `vocal > 0.5` → ×0.85。
-- 稳定度：高则标「情绪不稳」，不扣分。
+- 负向标签是**乘性**的：分数不会被压成负数、候选不会被清空；`Σ w⁻·p = 1` 时最多压到 40%。
+  每个负向标签独立计分，不去重、不合并（相关性不做处理）。
+- 人声惩罚：`vocalFactor = 1 − penalty · cueScale · clamp((p − threshold)/(1 − threshold), 0, 1)`，
+  `p = analysis.vocal`（CLAP 零样本）；`cue.vocal = none` 全额、`any` 半额、`wordless` 不罚；
+  默认 `penalty=0.6`、`threshold=0.1`（工作台可调），没有人声概率时不罚。
+- 稳定度：`stability` 恒为 `null`，当前不展示、不扣分。
 
 ### 8.2 段内排序
 
@@ -292,11 +308,16 @@ song_id → 直链 → 下载（≤4 min, 24 kHz）
 
 ```
 ★ 1  《曲名》· 艺人 · 3:34        ▶
-      得分 0.61
-      dark 0.72 · dramatic 0.58 · calm 0.41
+      听感 得分 0.61   黑暗 0.72 · 戏剧张力 0.58 · 平静 0.41
+      目标匹配 黑暗 0.72×0.40 · 戏剧张力 0.58×0.25 · 沉重 0.41×0.20 · 平静 0.30×0.15 → 基础 0.64
+      负向标签 −18%：−12% 欢快 · −6% 轻快
+      人声 0.71 → ×0.78
 ```
 
-- **每个标签的概率**：看得出为什么排第一。
+- **全局标签**（「听感」那行）：模型概率最高的几个原生标签，不一定是本段目标。
+- **目标匹配**：本段 `target` 每个标签的概率 × 权重 → 基础分；排序按它算。
+- **负向标签**：每个标签各压了多少；合计即 `1 − factor`。
+- **人声**：CLAP 的人声概率与惩罚系数，只在真的被压时显示。
 - **加权总分**：按本段权重算出，换段或改权重会变，标「段内得分」。
 
 ---
@@ -305,27 +326,29 @@ song_id → 直链 → 下载（≤4 min, 24 kHz）
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ 黑水溪 · 第 2 回   进度 7/13   [找候选] [分析听感] [生成歌单] │
+│ 黑水溪 · 第 2 回   7/13 已选   [历史] [登录] [分析听感] [检索全部] [导出文档] [建歌单] │
 ├───────────────┬──────────────────────────────────────────────┤
 │ 场景列表       │ 候选表（当前段）                              │
-│ ● c01 进山的…  │ ★ 1  曲名 · 艺人 · 3:34   ▶   得分 0.61      │
-│   dark .4 …    │      dark 0.72 · dramatic 0.58                │
-│ ○ c02 …        │   2  曲名 · 艺人 · 2:58   ▶   得分 0.54      │
+│ ● c01 进山的…  │ ▶  曲名 · 艺人 · 3:34   听感 得分 0.61        │
+│ ○ c02 …        │    目标匹配 … → 基础 0.64                     │
+│                │    负向标签 −18%：−12% 欢快 · −6% 轻快         │
 ├───────────────┴──────────────────────────────────────────────┤
-│ ▶ ──────●────────── 1:12 / 3:34   🔊  ⏮ ⏭                  │
+│ ▶  曲名 ── 0:41 ──────●────── 3:34                           │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-- 完整播放器：播放/暂停、拖进度、上下首、音量。
-- 单击播放、双击定选；`空格` 播放暂停、`↑/↓` 选行、`Enter` 定选、`R` 拒绝。
+- 试听：播放/暂停、进度条可点可拖（16px 命中区，内部 4px 细线）。
+- 定选用候选行的「选它」按钮；场景可编辑；支持单段重搜与「换词重搜」。
+- 每段顶部可编辑负向标签（数字权重）；设置里可开关负向标签。
+- **不做**：音量、上下首、快捷键、开团实时切歌。
 
 ---
 
 ## 10. 产出
 
-1. 网易云歌单（按场景顺序，幂等）。
-2. `review.md` / `review.csv`：场景、定选曲、标签与权重、标签概率。
-3. 歌单 ID 写回曲目表。
+1. `review.md` / `playlist.txt` / `playlist.csv` 三份文档（按场景顺序，带选曲理由）。
+2. 歌单由用户手动建（开放平台没有歌单写入接口）；工作台「历史」记录建过的歌单。
+3. 导出状态写回曲目表的 `export` 字段。
 
 ---
 
@@ -333,11 +356,11 @@ song_id → 直链 → 下载（≤4 min, 24 kHz）
 
 | 工具 | 作用 |
 |---|---|
-| `bgm_create` | 建表 / 追加 / 改 |
-| `bgm_fetch` | 找候选 |
-| `bgm_analyze` | 分析听感（调 m2e 封装） |
-| `bgm_pick` | 定选 |
-| `bgm_playlist` | 生成歌单 |
+| `bgm_init` | 建表 / 追加 / 局部改（create / append / patch / replace） |
+| `bgm_fetch` | 找候选（歌单为主 + CLI 搜歌补充） |
+| `bgm_tag` | 听感分析（调 m2e 封装，分批落库） |
+| `bgm_pick` | 定选（校验 song_id 必须在候选里） |
+| `bgm_commit` | 导出 review.md / playlist.txt / playlist.csv |
 | `bgm_view` | 只读 |
 
 原则：一工具一职责；参数收敛到 `file` + 少量可选；写操作原子化并备份；只读无副作用。
@@ -364,11 +387,17 @@ song_id → 直链 → 下载（≤4 min, 24 kHz）
 
 ```
 $DSH_HOME/bgm-prep/
-  settings.json / moods.json   # moods.json 是 tag_list.npy 的冻结副本
-  projects/<slug>/<scope>.cues.json
-  cache/analysis/<song_id>-<m2eVer>.json
-  cache/url/<song_id>.json
+  settings.json        # 可调参数（candidateLimit / fetchBudget / avoidEnabled / analysis 段…）
+  moods.json           # tag_list.npy 的冻结副本（56 个原生标签）
+  analysis.db          # 听感结果（SQLite，song_id + engine 为键）
+  cache/audio/<song_id>-<版本>.wav   # 解码后的 24 kHz mono wav，默认 5 GB
+  cache/               # 其它接口缓存
+  ui-state.json        # 工作台当前打开的表 + 最近打开
+  history.json         # 建过歌单的历史
+  credentials.json / privatekey.b64 / token.json / device.json   # 开放平台凭据（可选路径）
 ```
+
+曲目表不放在这里：它跟着模组走（`<模组目录>/bgm/<scope>.cues.json`），测试产物在仓库的 `test-runs/`。
 
 ---
 
@@ -389,9 +418,9 @@ $DSH_HOME/bgm-prep/
 
 ### 15.1 准确性（主指标）
 
-7 首已知气质曲，期望标签与禁忌标签用**模型原生词**写：
+7 首已知气质曲，期望标签与「不应出现的标签」用**模型原生词**写：
 
-| # | 曲目 | 期望（原生标签） | 禁忌 |
+| # | 曲目 | 期望（原生标签） | 不应出现 |
 |---|---|---|---|
 | 1 | 轻快日式民谣 | `happy` `upbeat` | `dark` `heavy` |
 | 2 | 有节奏的说唱 | `groovy` `energetic` | `soft` `calm` |
@@ -401,7 +430,7 @@ $DSH_HOME/bgm-prep/
 | 6 | 史诗管弦 | `epic` `powerful` | — |
 | 7 | 对照（第 1 首间奏） | 与整曲应明显不同 | — |
 
-**Top-1 ≥ 6/7 且禁忌 = 0** 才发布排序功能。
+**Top-1 ≥ 6/7 且不应出现的标签 = 0** 才发布排序功能。
 
 ### 15.2 产品指标
 
@@ -421,11 +450,14 @@ $DSH_HOME/bgm-prep/
 
 | 阶段 | 内容 | 出口 |
 |---|---|---|
-| **M1** | 表 + 检索 + 完整播放器 + 定选 + 歌单 | 无分析也能用 |
+| **M1** | 表 + 检索 + 试听 + 定选 + 导出 | 无分析也能用 |
 | **M2** | 装 music2emo + 读词表 + 单曲跑通 + 薄封装 | 输出完整概率向量 |
 | **M2b** | 场景→标签预填 + 排序 + 缓存 | 候选按听感排序 |
 | **M3** | 权重可改 + 依据展示 | 建表后少改几下 |
 | **M4** | 7 首验收 + 产品指标 | 决定是否保留 CLAP 补位 |
+
+> 当前进度（0.12.2）：M1–M2b 已完成；M3 只完成「负向标签权重可改」与「目标匹配/负向分解展示」，
+> **正向 target 权重仍是只读**（见 [TODO](TODO.md) §二.3）；M4 的 7 首验收未做。
 
 ---
 
@@ -447,3 +479,7 @@ $DSH_HOME/bgm-prep/
 ## 18. 一句话
 
 **场景直接说模型的话，模型直接给概率。** 词表不翻译、不映射：`dark`、`dramatic`、`calm` 既是模型认识的字，也是你写在场景表上的字。
+
+
+
+

@@ -26,10 +26,11 @@ test('写中文显示名时，提示对应的英文标签', () => {
 
 test('表里显示中文，但数据仍是英文标签', () => {
   const line = targetLine([{ tag: 'dark', weight: 0.5 }, { tag: 'dramatic', weight: 0.5 }])
-  assert.match(line, /黑暗 0\.50/)
-  assert.match(line, /戏剧张力 0\.50/)
+  assert.match(line, /黑暗 50%/)
+  assert.match(line, /戏剧张力 50%/)
   assert.doesNotMatch(line, /dark/)
 
   const analysis = analysisLine({ probs: { dark: 0.72, dramatic: 0.58 } })
-  assert.match(analysis, /黑暗 0\.72/)
+  assert.match(analysis, /黑暗 72%/)
 })
+

@@ -71,4 +71,30 @@ test('force 重跑会清空旧候选并重新填', async () => {
   const second = await tools.get('bgm_fetch').execute({ file, force: true }, exec)
   assert.equal(second.filled, 1)
 })
+test('bgm_fetch 的返回文案：没检索的段算「没有候选」，已有候选才算「待定选」', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-msg-'))
+  const file = path.join(dir, 'bgm', 'act1.cues.json')
+  const tools = loadTools()
+  const exec = { agent: { session: { header: { cwd: dir } } } }
 
+  const init = await tools.get('bgm_init').execute({
+    file, module: 'mock', session: 1, scope: 'act1',
+    cues: [
+      { id: 's1', scene: '地窖', need_bgm: true },
+      { id: 's2', scene: '档案室', need_bgm: true },
+      { id: 's3', scene: '码头', need_bgm: true }
+    ]
+  }, exec)
+  assert.equal(init.ok, true, JSON.stringify(init))
+
+  const one = await tools.get('bgm_fetch').execute({ file, cue_ids: ['s1'] }, exec)
+  assert.equal(one.ok, true, JSON.stringify(one))
+  assert.match(one.next, /2 段没有候选（待检索）/)
+  assert.match(one.next, /1 段已有候选，待定选/)
+  assert.doesNotMatch(one.next, /3 段已有候选/)
+
+  const more = await tools.get('bgm_fetch').execute({ file, cue_ids: ['s2', 's3'] }, exec)
+  assert.equal(more.ok, true, JSON.stringify(more))
+  assert.match(more.next, /3 段已有候选，待定选/)
+  assert.doesNotMatch(more.next, /没有候选/)
+})

@@ -121,4 +121,29 @@ test('patch 模式只改指定段，不动其它段的选曲', async () => {
   assert.equal(after.cues[0].picks.primary.why, '保留我')
   assert.equal(after.cues[1].scene, 'b 改名')
 })
+test('bgm_init 写 avoidTargets：按实际数量归一化，表格里能看到负向标签', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-avoid-'))
+  const file = path.join(dir, 'bgm', 'a.cues.json')
+  const tools = loadTools()
+  const exec = execFor(dir)
+  const init = await tools.get('bgm_init').execute({
+    file,
+    module: '负向标签测试',
+    scope: 'a',
+    cues: [{
+      scene: '地窖 · 熄灯',
+      need_bgm: true,
+      target: [{ tag: 'dark', weight: 1 }],
+      avoidTargets: [{ tag: 'happy', weight: 1 }, { tag: 'upbeat', weight: 1 }, { tag: 'funny', weight: 1 }]
+    }]
+  }, exec)
+  assert.equal(init.ok, true)
+  assert.match(init.table, /负向标签 \[/)
+  const saved = JSON.parse(await fsp.readFile(file, 'utf8'))
+  const cue = saved.cues[0]
+  assert.equal(cue.avoidTargets.length, 3)
+  assert.equal(Number(cue.avoidTargets.reduce((a, x) => a + x.weight, 0).toFixed(2)), 1)
+  // 正向目标不受影响
+  assert.deepEqual(cue.target.map((x) => x.tag), ['dark'])
+})
 

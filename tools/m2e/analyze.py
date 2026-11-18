@@ -47,6 +47,18 @@ CACHE_VERSION_FALLBACK = "music2emo-v1"
 MIN_AUDIO_BYTES = 20000
 MIN_CACHE_BYTES = 100000
 
+# 人声二分类（CLAP 零样本）：与音乐情绪分开算，只回答「有没有人声」。
+# 固定 10 秒窗口 × 6 均匀铺满全曲，取最大概率。
+# 为什么不用更长的窗口：CLAP 的 feature extractor 默认 truncation="rand_trunc"，
+# 超过 10 秒的输入会被**随机**截取 10 秒，导致同一个文件每次算出来不一样（2026-11-19 实测 0.49–0.75）。
+# 固定 10 秒正好是它的窗口长度，不触发随机截断，结果可复现。
+VOCAL_PROMPTS = [
+    "instrumental music without any singing",
+    "music with a person singing or rapping",
+]
+VOCAL_CLIP_SECONDS = 10
+VOCAL_WINDOWS = 6
+
 
 def _emit(obj):
     """一行一个 JSON，写完立刻 flush —— 这是增量落库的前提。"""
@@ -237,6 +249,89 @@ class _JsonWithUnknownChordRoot:
         return _inject_unknown_chord_root(data, getattr(fp, "name", ""))
 
 
+def _clap_local_path(hf_home, repo):
+    """优先用本地缓存里的快照目录，绕开 huggingface_hub 的联网解析。"""
+    if not hf_home:
+        return ""
+    repo_dir = os.path.join(hf_home, "hub", "models--" + str(repo).replace("/", "--"))
+    try:
+        with open(os.path.join(repo_dir, "refs", "main"), "r", encoding="utf-8") as ref:
+            rev = ref.read().strip()
+    except OSError:
+        return ""
+    if not rev:
+        return ""
+    snap = os.path.join(repo_dir, "snapshots", rev)
+    return snap if os.path.isfile(os.path.join(snap, "config.json")) else ""
+
+
+def _load_clap(cfg):
+    """加载 CLAP 只做「有没有人声」二分类；失败返回 None，不阻塞主流程。"""
+    import torch
+    from transformers import ClapModel, ClapProcessor
+
+    hf_home = str(cfg.get("hfHome") or "").strip()
+    if hf_home:
+        os.environ["HF_HOME"] = hf_home
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+    name = str(cfg.get("model") or "laion/larger_clap_music_and_speech")
+    target = _clap_local_path(hf_home, name) or name
+    try:
+        processor = ClapProcessor.from_pretrained(target, local_files_only=True)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = ClapModel.from_pretrained(target, local_files_only=True).to(device).eval()
+    except Exception as exc:  # noqa: BLE001
+        sys.stderr.write(f"[bgm-prep] CLAP 加载失败，跳过人声识别：{type(exc).__name__}: {exc}\n")
+        sys.stderr.flush()
+        return None
+    text = processor(text=VOCAL_PROMPTS, return_tensors="pt", padding=True)
+    with torch.no_grad():
+        text_embed = model.get_text_features(**{k: v.to(device) for k, v in text.items()})
+    text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)
+    return (processor, model, text_embed, float(model.logit_scale_a.exp().item()), device)
+
+
+def _vocal_prob(wav_path, clap):
+    """固定 10 秒窗口 × 6（均匀铺满全曲）里最大的人声概率；确定性结果。"""
+    import librosa
+    import soundfile as sf
+    import torch
+
+    processor, model, text_embed, scale, device = clap
+    data, sr = sf.read(wav_path, dtype="float32")
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    duration = len(data) / sr
+    span = min(VOCAL_CLIP_SECONDS, duration)
+    if span < 3:
+        return None
+    if duration <= span:
+        starts = [0.0]
+    else:
+        step = (duration - span) / max(1, VOCAL_WINDOWS - 1)
+        starts = [round(i * step, 3) for i in range(VOCAL_WINDOWS)]
+    max_samples = int(VOCAL_CLIP_SECONDS * 48000)
+    best = 0.0
+    for start in starts:
+        clip = data[int(start * sr): int(start * sr) + int(span * sr)]
+        if clip.size == 0:
+            continue
+        if sr != 48000:
+            clip = librosa.resample(clip, orig_sr=sr, target_sr=48000)
+        # 必须 ≤ CLAP 的 10 秒窗口：多一个样本就会被 rand_trunc 随机截，结果就不可复现了
+        if clip.size > max_samples:
+            clip = clip[:max_samples]
+        inputs = processor(audios=clip, sampling_rate=48000, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        with torch.no_grad():
+            audio_embed = model.get_audio_features(**inputs)
+        audio_embed = audio_embed / audio_embed.norm(dim=-1, keepdim=True)
+        prob = ((audio_embed @ text_embed.T).squeeze(0) * scale).softmax(dim=-1).tolist()[1]
+        best = max(best, float(prob))
+    return round(best, 4)
+
+
 def _load_model(job):
     code = job["code"]
     # music2emo 的推理链大量使用相对路径（./inference/data、./temp_out），必须切到仓库目录
@@ -265,6 +360,19 @@ def _load_model(job):
     return model, mood_list
 
 
+def _cleanup(cache_dir, cache_max_bytes, tmp_dir):
+    """容量淘汰放在整批之后：避免删掉正在排队推理的 wav；临时目录直接删。"""
+    if cache_dir and cache_max_bytes > 0:
+        _enforce_cache(cache_dir, cache_max_bytes)
+    if tmp_dir:
+        try:
+            shutil.rmtree(tmp_dir)
+        except OSError as exc:
+            # 清理失败就保留，并把路径说清楚，方便事后手删
+            sys.stderr.write(f"temp dir left behind: {tmp_dir} ({exc})\n")
+            sys.stderr.flush()
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -273,6 +381,9 @@ def main():
 
     job = json.load(sys.stdin)
     tracks = job.get("tracks") or []
+    mode = str(job.get("mode") or "full")
+    vocal_cfg = job.get("vocal") or {}
+    vocal_enabled = bool(vocal_cfg.get("enabled"))
     cache_cfg = job.get("cache") or {}
     cache_dir = str(cache_cfg.get("dir") or "").strip()
     cache_version = str(cache_cfg.get("version") or CACHE_VERSION_FALLBACK)
@@ -280,13 +391,6 @@ def main():
         cache_max_bytes = int(cache_cfg.get("max_bytes") or 0)
     except (TypeError, ValueError):
         cache_max_bytes = 0
-
-    try:
-        model, mood_list = _load_model(job)
-    except Exception as exc:  # noqa: BLE001
-        _emit({"error": f"加载 music2emo 失败：{type(exc).__name__}: {exc}",
-               "trace": traceback.format_exc()[-800:]})
-        return
 
     try:
         download_concurrency = int(cache_cfg.get("concurrency") or 3)
@@ -320,6 +424,41 @@ def main():
         _fetch_and_decode(url, wav)
         return wav
 
+    # 单独的人声批次：只跑 CLAP，不重复 music2emo（给存量分析补 vocal 用）
+    if mode == "vocal":
+        clap = _load_clap(vocal_cfg) if vocal_enabled else None
+        if clap is None:
+            _emit({"error": "人声识别不可用（CLAP 没加载起来）"})
+            _cleanup(cache_dir, cache_max_bytes, tmp_dir)
+            return
+        count = 0
+        pool = ThreadPoolExecutor(max_workers=download_concurrency)
+        try:
+            futures = [pool.submit(prepare, track) for track in tracks]
+            for index, track in enumerate(tracks):
+                sid = track.get("song_id")
+                try:
+                    wav = futures[index].result()
+                    _emit({"song_id": sid, "vocal": _vocal_prob(wav, clap)})
+                except Exception as exc:  # noqa: BLE001
+                    _emit({"song_id": sid, "error": f"{type(exc).__name__}: {str(exc)[:160]}"})
+                count += 1
+            _emit({"done": True, "count": count})
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+            _cleanup(cache_dir, cache_max_bytes, tmp_dir)
+        return
+
+    try:
+        model, mood_list = _load_model(job)
+    except Exception as exc:  # noqa: BLE001
+        _emit({"error": f"加载 music2emo 失败：{type(exc).__name__}: {exc}",
+               "trace": traceback.format_exc()[-800:]})
+        return
+    clap = None
+    if vocal_enabled:
+        clap = _load_clap(vocal_cfg)
+
     count = 0
     pool = ThreadPoolExecutor(max_workers=download_concurrency)
     try:
@@ -342,6 +481,7 @@ def main():
                             "arousal": round(float(out.get("arousal", 0.0)), 3),
                         },
                         "stability": None,
+                        "vocal": _vocal_prob(wav, clap) if clap else None,
                     },
                 })
             except Exception as exc:  # noqa: BLE001
@@ -350,16 +490,7 @@ def main():
         _emit({"done": True, "count": count})
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
-        # 容量淘汰放在整批之后：避免删掉正在排队推理的 wav
-        if cache_dir and cache_max_bytes > 0:
-            _enforce_cache(cache_dir, cache_max_bytes)
-        if tmp_dir:
-            try:
-                shutil.rmtree(tmp_dir)
-            except OSError as exc:
-                # 清理失败就保留，并把路径说清楚，方便事后手删
-                sys.stderr.write(f"temp dir left behind: {tmp_dir} ({exc})\n")
-                sys.stderr.flush()
+        _cleanup(cache_dir, cache_max_bytes, tmp_dir)
 
 
 if __name__ == "__main__":

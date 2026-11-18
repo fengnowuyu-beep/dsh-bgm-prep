@@ -45,6 +45,8 @@ async function configure(extra = {}) {
     batchSize: 8,
     threads: 2,
     audioCacheMaxBytes: 1024 * 1024 * 1024,
+    // 默认关掉人声识别：老用例只关心情绪分析，避免多起一个 CLAP 进程
+    vocal: { enabled: false },
     ...extra
   }
   await fsp.writeFile(path.join(home, 'bgm-prep', 'settings.json'), JSON.stringify({ analysis }, null, 2), 'utf8')
@@ -315,4 +317,41 @@ test('audio cache：同一首歌第二次不再下载', { skip: hasVenv ? false 
 
 test.after(() => {
   globalThis.fetch = realFetch
+})
+test('人声识别：存量分析缺 vocal 时只补跑 CLAP，不重算情绪', async () => {
+  await configure({ vocal: { enabled: true, penalty: 0.25, threshold: 0.25 } })
+  process.env.FAKE_MODE = 'ok'
+  process.env.FAKE_LOG = fakeLog
+  await clearFakeLog()
+  await writeAnalysis(9001, 'test-v1', {
+    probs: { dark: 0.5 }, va: { valence: 3, arousal: 5 }, stability: null, vocal: null,
+    engine: 'test-v1', at: new Date().toISOString()
+  })
+
+  const run = await analyzeTracks([track(9001)])
+  assert.equal(run.ok, true)
+  assert.equal(run.cached, 1)
+  assert.equal(run.vocalFilled, 1)
+  assert.equal(run.results['9001'].vocal, 0.7)
+
+  const hit = await readAnalysis(9001, 'test-v1')
+  assert.equal(hit.vocal, 0.7)
+
+  const log = await readFakeLog()
+  assert.deepEqual(log.map((l) => l.jobMode), ['vocal'], '只应起一次人声批次')
+})
+
+test('人声识别：新歌分析时一并写回 vocal', async () => {
+  await configure({ vocal: { enabled: true } })
+  process.env.FAKE_MODE = 'ok'
+  process.env.FAKE_LOG = fakeLog
+  await clearFakeLog()
+
+  const run = await analyzeTracks([track(9101)])
+  assert.equal(run.ok, true)
+  assert.equal(run.results['9101'].vocal, 0.7)
+  const hit = await readAnalysis(9101, 'test-v1')
+  assert.equal(hit.vocal, 0.7)
+  const log = await readFakeLog()
+  assert.deepEqual(log.map((l) => l.jobMode), ['full'], '不需要额外的人声批次')
 })

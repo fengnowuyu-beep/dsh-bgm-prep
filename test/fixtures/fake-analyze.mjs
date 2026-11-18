@@ -15,6 +15,7 @@ const tracks = Array.isArray(job.tracks) ? job.tracks : []
 if (logFile) {
   await fsp.appendFile(logFile, `${JSON.stringify({
     mode,
+    jobMode: job.mode ?? 'full',
     count: tracks.length,
     ids: tracks.map((t) => t.song_id),
     cache: job.cache ?? null,
@@ -31,12 +32,17 @@ function resultFor(songId) {
     result: {
       probs: { dark: 0.5, calm: 0.25, dramatic: 0.25 },
       va: { valence: 3.0, arousal: 5.0 },
-      stability: null
+      stability: null,
+      // 开了人声识别时给一个固定概率，方便断言写回
+      vocal: job.vocal?.enabled === false ? null : 0.7
     }
   }
 }
 
-if (mode === 'legacy') {
+if (job.mode === 'vocal') {
+  for (const track of tracks) emit({ song_id: track.song_id, vocal: 0.7 })
+  emit({ done: true, count: tracks.length })
+} else if (mode === 'legacy') {
   const results = {}
   for (const track of tracks) results[String(track.song_id)] = resultFor(track.song_id).result
   process.stdout.write(`${JSON.stringify({ results })}\n`)
