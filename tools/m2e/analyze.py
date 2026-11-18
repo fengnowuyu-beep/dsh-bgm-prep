@@ -21,6 +21,11 @@
 只做三件事：下载 → 解码成 24 kHz mono wav → 调 Music2emo.predict。
 不做 UI、不训练、不做和弦以外的额外处理（和弦在 predict 内部完成）。
 
+兼容垫片：music2emo 的 `chord_root.json` 缺 `X`（未知和弦）键，个别音频会触发
+`KeyError: 'X'`。本文件在加载 music2emo 后在内存里补这个键，**不修改
+`E:\Software\audioml-m2e` 的任何文件**；细节见下方「上游兼容垫片」注释、
+README「听感分析」和 `docs/DESIGN-v4.md` §7.2。
+
 对上游代码做的两处最小修改（见 docs/DESIGN-v4.md §7.2）：
   1. music2emo.py 里 `import gradio` 改成 try/except —— 插件不需要 UI，也不装 gradio；
   2. 返回值多带一个 `probs`（完整 56 维概率），`predicted_moods` 只有过阈值的 top 列表，不够用。
@@ -179,6 +184,59 @@ def _enforce_cache(cache_dir, max_bytes):
     return removed
 
 
+# ---------------------------------------------------------------- 上游兼容垫片
+#
+# 上游 bug（E:\Software\audioml-m2e\music2emo\music2emo.py:424-426）：
+#     chordRootID = chordRootDic[chord_arr[0]]       # X 在这里先被查表
+#     if chord_arr[0] == "N" or chord_arr[0] == "X": # 本意兼容 N/X，但判断晚了一步
+#         chordAttrID = 0
+# chord_root.json 只有 N + 12 个根音（N=0），没有 X；而 BTC 词表里 X 是合法的
+# 第 168 类（utils/mir_eval_modules.py: idx2voca_chord()[168] = "X"，
+# 169 = "N"）。所以只要音频里出现一段「未知和弦」，predict 就会抛
+# KeyError: 'X'。这是确定性的，同一首歌重试必然复现。
+#
+# 修法选择：**不修改 E:\Software\audioml-m2e 的任何文件**，只在当前分析进程内
+# 把 music2emo 模块的 json 换成 _JsonWithUnknownChordRoot：读到 chord_root.json
+# 时在内存里补一个 "X": N 的 ID。X 这个和弦类仍然保留（chord.json 本来就有 X），
+# 下游 chordAttrID=0 的分支照常走；只是补上了缺的根音兜底。
+# 上游以后自己修了也没关系：检测到已有 X 就不再补，垫片自动无害。
+# 说明同步在 README「听感分析」和 docs/DESIGN-v4.md §7.2。
+
+CHORD_ROOT_SUFFIX = "inference/data/chord_root.json"
+_shim_logged = False
+
+
+def _inject_unknown_chord_root(data, name):
+    """在内存里给 chord_root.json 补 X → N 的根音 ID；不写磁盘。"""
+    global _shim_logged
+    if not isinstance(data, dict):
+        return data
+    path = str(name or "").replace("\\", "/")
+    if not path.endswith(CHORD_ROOT_SUFFIX):
+        return data
+    if "X" not in data:
+        data["X"] = data.get("N", 0)
+        if not _shim_logged:
+            _shim_logged = True
+            sys.stderr.write(
+                "[bgm-prep] music2emo chord_root.json 缺 X；已在内存补 N 的 ID"
+                "（不修改 E:\\Software\\audioml-m2e，见 docs/DESIGN-v4.md §7.2）\n"
+            )
+            sys.stderr.flush()
+    return data
+
+
+class _JsonWithUnknownChordRoot:
+    """music2emo 模块专用的 json 代理：只拦 chord_root.json，其他全部透传。"""
+
+    def __getattr__(self, name):
+        return getattr(json, name)
+
+    def load(self, fp, *args, **kwargs):
+        data = json.load(fp, *args, **kwargs)
+        return _inject_unknown_chord_root(data, getattr(fp, "name", ""))
+
+
 def _load_model(job):
     code = job["code"]
     # music2emo 的推理链大量使用相对路径（./inference/data、./temp_out），必须切到仓库目录
@@ -196,6 +254,10 @@ def _load_model(job):
         torch.set_num_threads(threads)
 
     from music2emo import Music2emo
+    import music2emo as _m2e
+
+    # 运行期垫片：见本文件上方「上游兼容垫片」注释；不改上游文件
+    _m2e.json = _JsonWithUnknownChordRoot()
 
     model = Music2emo(model_weights="saved_models/J_all.ckpt")
     tags = np.load("./inference/data/tag_list.npy", allow_pickle=True)[127:]

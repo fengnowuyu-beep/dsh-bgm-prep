@@ -68,6 +68,7 @@ whenToUse: 用户要为一次跑团准备背景音乐，或继续编辑已有的
 - **每次默认 24 首**（`max_songs`）。返回 `partial: true` / `remaining > 0` 时，**再调一次**，不要换工具。
 - **结果逐首入库**（`$DSH_HOME/bgm-prep/analysis.db`）：中断最多丢当前一首；同一首歌以后直接取。
 - 输出：56 个概率 + valence/arousal + 段内得分。
+- 单首 `KeyError: 'X'`（未知和弦）已由 `tools/m2e/analyze.py` 的运行期垫片兜住；若还出现，说明垫片失效，按错误上报，不要换歌。
 - 拿不到音频的候选标失败，但仍可试听；在交付说明里点出来。
 
 ### 5. 看表并交付：`bgm_view`

@@ -232,6 +232,12 @@ E:\Software\audioml-m2e\Scripts\pip install mir_eval pretty_midi
 | `predict` 里的 `torch.load(btc_model)` | 加 `map_location=self.device` | 该 checkpoint 存于 CUDA，CPU 机器加载会炸 |
 | `predict` 的返回 dict | 多带 `probs`（56 维） | 原生只返回过阈值的 top 列表，无法算加权得分 |
 
+**运行期兼容垫片（不改上游文件）**：`predict` 在 `music2emo.py:424` 先 `chordRootDic[chord]`
+再判断 N/X，而 `chord_root.json` 只有 N + 12 个根音；BTC 词表里 X（index 168）是合法类别，
+未知和弦段会抛 `KeyError: 'X'`。`tools/m2e/analyze.py` 在 import 后把模块的 `json` 换成只拦
+`chord_root.json` 的代理，在内存补 `"X": 0`（N 的 ID）。不写盘；上游修好后垫片自动无害。
+这也是“审计发现的上游 bug 不通过改上游源码解决”的示范：补丁留在插件侧，升级上游时不用重新打。
+
 **实测耗时（CPU，i7 级，单曲 3 分半）**：模型加载 5 s + 解码 7 s + 推理 25 s。批量时加载只付一次。
 
 **首跑还会遇到的坑**：`requirements.txt` 漏了 `mir_eval`、`pretty_midi`，且重复列了 `PyYAML` 两个版本导致 pip 解析失败——用 `requirements.clean.txt` 装（已修）。

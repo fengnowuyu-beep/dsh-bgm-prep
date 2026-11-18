@@ -17,14 +17,17 @@
   命中不再下载；默认 5 GB，按 mtime LRU 淘汰。`%TEMP%` 下不再新增 `m2e-*`，异常残留的 `.part-*`
   一小时后自动清理。
 - 下载/解码在 Python 侧并发（`downloadConcurrency`，默认 3），与推理重叠；下载慢时不再把一批拖成串行。
+- 修：music2emo 的 `chord_root.json` 缺 `X`（未知和弦）键，个别歌会抛 `KeyError: 'X'`。
+  `tools/m2e/analyze.py` 加运行期垫片：只在当前进程内存里补 `X` → N 的 ID，**不改
+  `E:\Software\audioml-m2e` 的任何文件**；上游修好后自动无害。
 - `analysis.db` 不可用（或写入失败）时自动退回旧 JSON 缓存，`bgm_tag` 用 `store` / `storeFailed`
   标出来，不再静默丢结果；库错误会经 `ctx.logger.debug` 记一行。
 - 推理线程数可配（`threads`，默认 16），子进程注入 `M2E_THREADS` / `OMP_NUM_THREADS` /
   `MKL_NUM_THREADS`，纯 CPU 路径少留性能。
 - 本机环境另做了 GPU 加速（torch/torchaudio `2.3.1+cu121` + nnAudio），属安装步骤、不进插件代码；
   README 补了可选命令与回滚方式。
-- 新增 12 个测试（NDJSON 解析、partial 保留、批次切分、单首超时、old JSON 兜底、
-  缓存命中、音频缓存真实落盘、下载并发），共 56 个。
+- 新增 12 个基础测试（NDJSON 解析、partial 保留、批次切分、单首超时、old JSON 兜底、
+  缓存命中、音频缓存真实落盘、下载并发）加 1 个 X 垫片测试，共 57 个。
 
 ## 0.10.0 — 2026-11-18
 

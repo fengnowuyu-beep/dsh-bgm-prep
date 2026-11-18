@@ -70,4 +70,5 @@
 | CLAP 兜底未接回 | `lib/tag.js` / `lib/match.js` / `tools/tag/analyze.py` 还在，但 `engine: "clap"` 目前只报错 |
 | 权重守恒显示 | `target` 权重和已强制为 1；UI 上四舍五入后可能看到 0.99，属正常 |
 | 稳定性字段 | `analysis.stability` 恒为 null（music2emo 内部多段平均，没有暴露段间方差） |
+| music2emo 的 X 和弦 | 上游 `chord_root.json` 缺 `X`；插件已用运行期垫片兜住，不改上游文件。上游修好后可删垫片 |
 | UI 未做视觉验收 | 0.9.0 只验证了语法与数据链路，界面效果需重启 DSH 后人工过一遍 |

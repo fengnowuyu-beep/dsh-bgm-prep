@@ -220,6 +220,16 @@ CPU 实测：模型加载 5 秒、单曲解码 7 秒、推理 25 秒。结果写
 
 以上都能在 `settings.json` 的 `analysis` 段覆盖：`perSongTimeoutMs`、`totalBudgetMs`、`batchSize`、`threads`、`audioCacheMaxBytes`、`downloadConcurrency`。
 
+### 已知上游问题：未知和弦 `X`
+
+`music2emo` 的 `chord_root.json` 只有 `N` + 12 个根音，没有 `X`（未知和弦）；而 `predict` 在判断
+`N`/`X` 之前就先 `chordRootDic["X"]`，所以氛围/念白段一旦被 BTC 判成 X 就会抛 `KeyError: 'X'`。
+
+插件不改 `E:\Software\audioml-m2e` 的任何文件：在 [tools/m2e/analyze.py](tools/m2e/analyze.py)
+里做**运行期垫片**——把 `music2emo` 模块的 `json` 换成一个只拦 `chord_root.json` 的代理，读到它时
+在内存里补 `"X": 0`（N 的 ID）。X 和弦类本身保留，`chord.json` 里本来就有 X；上游以后自己修了，
+垫片检测到已有 X 就不再补。只在当前分析进程生效，不写盘。
+
 **它擅长**：判断实际气质（够不够 dark、是不是 epic、偏 sad 还是 happy）。
 **它不擅长**：判得绝对准确（Jamendo 56 类 macro PR-AUC 0.15 是公开天花板），所以只用于段内排序。
 
