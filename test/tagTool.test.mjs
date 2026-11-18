@@ -85,9 +85,11 @@ test('bgm_tag：默认 24 首一批，超出的留到 remaining，再调一次�
   assert.equal(first.store, 'sqlite')
 
   const rendered = tools.get('bgm_tag').output.render(null, first).map((part) => part.text).join('\n')
-  assert.match(rendered, /已分析 24 首/)
-  assert.match(rendered, /还剩 2 首/)
+  // 口径：主数字是「本次可用 = 新分析 + 缓存」，不再只报新分析数
+  assert.match(rendered, /本次可用 24 首（新分析 24 \+ 缓存命中 0/)
+  assert.match(rendered, /还剩 2 首没尝试过/)
   assert.match(rendered, /本次上限/)
+  assert.match(rendered, /写回 24 首的段内得分/)
 
   const afterFirst = JSON.parse(await fsp.readFile(file, 'utf8'))
   const analyzedIds = [...afterFirst.cues[0].candidates, ...afterFirst.cues[1].candidates]

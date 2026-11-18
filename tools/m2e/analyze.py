@@ -23,7 +23,7 @@
 
 兼容垫片：music2emo 的 `chord_root.json` 缺 `X`（未知和弦）键，个别音频会触发
 `KeyError: 'X'`。本文件在加载 music2emo 后在内存里补这个键，**不修改
-`E:\Software\audioml-m2e` 的任何文件**；细节见下方「上游兼容垫片」注释、
+`E:\\Software\\audioml-m2e` 的任何文件**；细节见下方「上游兼容垫片」注释、
 README「听感分析」和 `docs/DESIGN-v4.md` §7.2。
 
 对上游代码做的两处最小修改（见 docs/DESIGN-v4.md §7.2）：
@@ -71,8 +71,10 @@ def _safe_token(value):
     return text or "v"
 
 
-def _cache_file(cache_dir, song_id, version):
-    return os.path.join(cache_dir, f"{int(song_id)}-{_safe_token(version)}.wav")
+def _cache_file(cache_dir, song_id, version, clip_seconds=0):
+    """缓存文件名带上裁剪长度：整曲分析和 120 秒分析的口径不同，不能混用同一个文件。"""
+    suffix = f"-c{int(clip_seconds)}" if clip_seconds and int(clip_seconds) > 0 else ""
+    return os.path.join(cache_dir, f"{int(song_id)}-{_safe_token(version)}{suffix}.wav")
 
 
 def _is_complete(path):
@@ -90,25 +92,15 @@ def _touch(path):
         pass
 
 
-def _fetch_and_decode(url, out_path, timeout=60):
-    """下载音频并转成 24 kHz mono wav。优先 soundfile，失败再试 ffmpeg。"""
-    import requests
+def _decode_to_wav(raw, out_path, clip_seconds=0):
+    """把原始字节解码成 24 kHz mono wav；clip_seconds>0 时只留开头这么长。
 
-    headers = {
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                      "(KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-        "referer": "https://music.163.com/",
-    }
-    resp = requests.get(url, headers=headers, timeout=timeout)
-    resp.raise_for_status()
-    raw = resp.content
-    if len(raw) < MIN_AUDIO_BYTES:
-        raise RuntimeError(f"audio too small ({len(raw)} bytes)")
-
+    只取开头一段的理由：情绪判断在 120 秒内基本稳定，但下载、解码、推理的成本
+    随时长线性涨（实测 250~560 秒的曲子单首 25~40 秒）。
+    """
     src = out_path + ".src"
     with open(src, "wb") as f:
         f.write(raw)
-
     try:
         import librosa
         import soundfile as sf
@@ -116,6 +108,10 @@ def _fetch_and_decode(url, out_path, timeout=60):
         y, sr = librosa.load(src, sr=24000, mono=True)
         if y.size < 24000 * 3:
             raise RuntimeError("audio too short")
+        if clip_seconds and clip_seconds > 0:
+            limit = int(clip_seconds) * 24000
+            if y.size > limit:
+                y = y[:limit]
         # .part-<pid> 后缀让 soundfile 猜不出格式，显式指定 WAV
         sf.write(out_path, y, 24000, format="WAV")
     finally:
@@ -125,7 +121,49 @@ def _fetch_and_decode(url, out_path, timeout=60):
             pass
 
 
-def _ensure_wav(url, final_path):
+def _fetch_and_decode(url, out_path, timeout=60, clip_seconds=0):
+    """下载音频并转成 24 kHz mono wav。优先 soundfile，失败再试 ffmpeg。
+
+    clip_seconds>0 时先按字节上限发 Range 请求只要开头一段；截断的 mp3 解不出来
+    就退回整曲下载，不因为省流量把整首歌判成失败。
+    """
+    import requests
+
+    headers = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+        "referer": "https://music.163.com/",
+    }
+
+    partial = None
+    if clip_seconds and clip_seconds > 0:
+        # 64000 B/s ≈ 512 kbps 的上界，够 120 秒最高码率还留余量
+        cap = min(16 * 1024 * 1024, int(clip_seconds) * 64000)
+        try:
+            resp = requests.get(url, headers={**headers, "Range": f"bytes=0-{cap - 1}"}, timeout=timeout)
+            if resp.status_code in (200, 206):
+                body = resp.content
+                if len(body) >= MIN_AUDIO_BYTES:
+                    partial = body
+        except Exception:  # noqa: BLE001 - 拉不到就退回整曲下载
+            partial = None
+
+    if partial is not None:
+        try:
+            _decode_to_wav(partial, out_path, clip_seconds)
+            return
+        except Exception:  # noqa: BLE001 - 截断音频解不出来，退回整曲
+            partial = None
+
+    resp = requests.get(url, headers=headers, timeout=timeout)
+    resp.raise_for_status()
+    raw = resp.content
+    if len(raw) < MIN_AUDIO_BYTES:
+        raise RuntimeError(f"audio too small ({len(raw)} bytes)")
+    _decode_to_wav(raw, out_path, clip_seconds)
+
+
+def _ensure_wav(url, final_path, clip_seconds=0):
     """缓存命中直接返回；否则下载/解码到 <final>.part-<pid>，再原子替换。"""
     if _is_complete(final_path):
         _touch(final_path)
@@ -133,7 +171,7 @@ def _ensure_wav(url, final_path):
     os.makedirs(os.path.dirname(final_path), exist_ok=True)
     part = f"{final_path}.part-{os.getpid()}"
     try:
-        _fetch_and_decode(url, part)
+        _fetch_and_decode(url, part, clip_seconds=clip_seconds)
         os.replace(part, final_path)
     finally:
         for leftover in (part, part + ".src"):
@@ -406,22 +444,29 @@ def main():
         # 没有缓存目录（老调用/测试）：用临时目录，跑完删掉
         tmp_dir = tempfile.mkdtemp(prefix="m2e-")
 
+    clip_seconds = 0
+    try:
+        clip_seconds = int(job.get("clip_seconds") or 0)
+    except (TypeError, ValueError):
+        clip_seconds = 0
+    clip_seconds = max(0, min(600, clip_seconds))
+
     def prepare(track):
         """下载/解码一首到缓存（或临时目录）；缓存命中直接返回路径。"""
         sid = track.get("song_id")
         url = str(track.get("url") or "")
         if cache_dir:
-            final = _cache_file(cache_dir, sid, cache_version)
+            final = _cache_file(cache_dir, sid, cache_version, clip_seconds)
             if _is_complete(final):
                 _touch(final)
                 return final
             if not url:
                 raise RuntimeError("no playable url")
-            return _ensure_wav(url, final)
+            return _ensure_wav(url, final, clip_seconds=clip_seconds)
         if not url:
             raise RuntimeError("no playable url")
         wav = os.path.join(tmp_dir, f"{int(sid)}.wav")
-        _fetch_and_decode(url, wav)
+        _fetch_and_decode(url, wav, clip_seconds=clip_seconds)
         return wav
 
     # 单独的人声批次：只跑 CLAP，不重复 music2emo（给存量分析补 vocal 用）

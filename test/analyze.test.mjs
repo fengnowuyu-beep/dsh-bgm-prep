@@ -355,3 +355,65 @@ test('人声识别：新歌分析时一并写回 vocal', async () => {
   const log = await readFakeLog()
   assert.deepEqual(log.map((l) => l.jobMode), ['full'], '不需要额外的人声批次')
 })
+
+test('只分析开头 120 秒：job 里带 clip_seconds，默认 120', async () => {
+  await configure()
+  process.env.FAKE_MODE = 'ok'
+  process.env.FAKE_LOG = fakeLog
+  await clearFakeLog()
+
+  const run = await analyzeTracks([track(9201)])
+  assert.equal(run.ok, true, JSON.stringify(run))
+  const log = await readFakeLog()
+  assert.equal(log[0].clip, 120, '默认应带 clip_seconds=120')
+})
+
+test('熔断：连续失败到上限就停，不把剩下的歌一个个等超时', async () => {
+  await configure({ breakerLimit: 3, batchSize: 2 })
+  process.env.FAKE_MODE = 'fail-all'
+  await clearFakeLog()
+
+  const tracks = [track(9301), track(9302), track(9303), track(9304), track(9305), track(9306)]
+  const run = await analyzeTracks(tracks)
+  assert.equal(run.ok, true, JSON.stringify(run))
+  assert.equal(run.stopReason, 'breaker')
+  assert.equal(run.failed, 4, '第一批 2 首 + 第二批 2 首后触发熔断')
+  assert.equal(run.remaining, 2, '最后两首根本没尝试')
+})
+
+test('失败负缓存：两次失败后进冷却，第三次直接跳过', async () => {
+  await configure({ breakerLimit: 8, batchSize: 8 })
+  process.env.FAKE_MODE = 'fail-all'
+
+  const tracks = [track(9401), track(9402)]
+  const first = await analyzeTracks(tracks)
+  assert.equal(first.failed, 2)
+  assert.equal(first.skippedCooldown, 0)
+
+  const second = await analyzeTracks(tracks)
+  assert.equal(second.failed, 2, '第二次仍然尝试（还没到两次门槛）')
+
+  const third = await analyzeTracks(tracks)
+  assert.equal(third.failed, 0)
+  assert.equal(third.skippedCooldown, 2, '冷却期内不再为这两首等超时')
+  assert.equal(third.remaining, 0)
+  assert.equal(third.retryLater, 2)
+})
+
+test('分析成功后清掉失败记录，下次照常尝试', async () => {
+  await configure({ breakerLimit: 8 })
+  process.env.FAKE_MODE = 'fail-all'
+  await analyzeTracks([track(9501)])
+  await analyzeTracks([track(9501)])
+
+  const { readFailure } = await import('../lib/analysisDb.js')
+  const cooling = await readFailure(9501, 'test-v1')
+  assert.ok(cooling?.retryAfter, '两次失败后应写入冷却截止时间')
+
+  // 用 force 绕过冷却，让这次成功，然后失败记录应被清掉
+  process.env.FAKE_MODE = 'ok'
+  const ok = await analyzeTracks([track(9501)], { force: true })
+  assert.equal(ok.analyzed, 1)
+  const cleared = await readFailure(9501, 'test-v1')
+  assert.equal(cleared, null)
+})

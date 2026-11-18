@@ -19,6 +19,7 @@ if (logFile) {
     count: tracks.length,
     ids: tracks.map((t) => t.song_id),
     cache: job.cache ?? null,
+    clip: job.clip_seconds ?? null,
     threads: process.env.M2E_THREADS ?? null
   })}\n`, 'utf8')
 }
@@ -48,6 +49,10 @@ if (job.mode === 'vocal') {
   process.stdout.write(`${JSON.stringify({ results })}\n`)
 } else if (mode === 'fatal') {
   process.stdout.write(`${JSON.stringify({ error: 'fake model load failure' })}\n`)
+} else if (mode === 'fail-all') {
+  // 模拟音源整批拿不到音频：用来测连败熔断与失败负缓存
+  for (const track of tracks) emit({ song_id: track.song_id, result: { error: 'audio 403' } })
+  emit({ done: true, count: tracks.length })
 } else if (mode === 'crash') {
   if (tracks[0]) emit(resultFor(tracks[0].song_id))
   process.exit(3)
