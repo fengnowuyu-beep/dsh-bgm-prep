@@ -74,7 +74,8 @@ test('bgm_tag：默认 24 首一批，超出的留到 remaining，再调一次�
   }))
   await fsp.writeFile(file, JSON.stringify(sheet, null, 2), 'utf8')
 
-  const first = await tools.get('bgm_tag').execute({ file, per_cue: 20 }, exec)
+  // max_songs 显式写死，免得默认值一改这条断言就跟着抖
+  const first = await tools.get('bgm_tag').execute({ file, per_cue: 20, max_songs: 24 }, exec)
   assert.equal(first.ok, true, JSON.stringify(first))
   assert.equal(first.tried, 24)
   assert.equal(first.analyzed, 24)

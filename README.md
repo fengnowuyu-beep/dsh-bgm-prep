@@ -218,7 +218,12 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 实测（本机 RTX 3060 Ti / cu121 环境）：模型加载约 5 秒；单曲推理视时长而定（5 分钟曲目约 3–7 秒，
 长曲线性增加）。纯 CPU 会慢一个量级。结果写进 `$DSH_HOME/bgm-prep/analysis.db`（SQLite），同一首歌只分析一次，所有曲目表、所有会话共用；旧 JSON 缓存首次读取时自动迁入。
 
-**分批与中断安全**（0.11）：`bgm_tag` 每次默认最多分析 **24 首**（`max_songs`），内部每 **8 首**一批 spawn 一次；每算完一首立即入库，进程被杀最多损失当前这一首。没跑完时返回 `partial: true` 和 `remaining`，再调一次接着跑。单首超过 `perSongTimeoutMs`（默认 180 秒）只放弃这一首，剩下的重开一批继续；整次预算为 `min(perSongTimeoutMs × 1.5 × 本次首数, totalBudgetMs)`（默认封顶 90 分钟），到点优雅收尾并保留已落库结果。
+**分批与中断安全**（0.11 / 0.17.3）：`bgm_tag` 每次默认最多分析 **48 首**（`max_songs`），内部每 **24 首**一批 spawn 一次；
+24 = 3 个场景（按每段 8 首算），让一批正好压在段边界上，不会把一个场景的候选拆到两次 spawn、白付一次模型加载。
+每算完一首立即入库，进程被杀最多损失当前这一首；崩溃后已入库的结果照样在库，下次直接缓存命中。
+没跑完时返回 `partial: true` 和 `remaining`，再调一次接着跑。单首超过 `perSongTimeoutMs`（默认 180 秒）只放弃这一首，
+**剩下的歌重开一批继续**（不是整批重来）；整次预算为 `min(perSongTimeoutMs × 1.5 × 本次首数, totalBudgetMs)`（默认封顶 90 分钟），
+到点优雅收尾并保留已落库结果。
 
 **失败负缓存与熔断**（0.17）：单曲失败两次后进 **10 分钟冷却**（`analysis_failures` 表），冷却期内 `bgm_tag` 直接跳过，不再为它等一次超时；连续 **8 首**失败熔断本次调用（`breakerLimit`）。`remaining` 只统计「从未尝试」的歌，失败待重试单独用 `retryLater` 报——修掉了旧版那个来回跳动的计数。
 
