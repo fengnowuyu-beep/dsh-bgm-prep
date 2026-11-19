@@ -243,6 +243,10 @@ test('P2-1 bgm_commit files：两幕合成一个歌单，两边都记下 playlis
   assert.equal(dry.ok, true, JSON.stringify(dry))
   assert.equal(dry.total, 2, '两幕的曲目都应算进同一个歌单')
 
+  // 让 fake-cli 把 updateDesc 的入参落下来，好断言说明里真的有「场景 → BGM」
+  const descLog = path.join(dir, 'desc.log')
+  process.env.FAKE_DESC_LOG = descLog
+
   const committed = await tools.get('bgm_commit').execute({ files: [fileA, fileB] }, exec)
   assert.equal(committed.ok, true, JSON.stringify(committed))
   assert.equal(committed.total, 2)
@@ -252,6 +256,13 @@ test('P2-1 bgm_commit files：两幕合成一个歌单，两边都记下 playlis
   const afterB = JSON.parse(await fsp.readFile(fileB, 'utf8'))
   assert.equal(afterA.playlist_id, committed.playlistId, '第一幕记下歌单 id')
   assert.equal(afterB.playlist_id, committed.playlistId, '第二幕也要记下来，否则下次会再建一个')
+
+  assert.equal(committed.descUpdated, true, '应当写入歌单说明')
+  const desc = await fsp.readFile(descLog, 'utf8')
+  assert.match(desc, /场景 → BGM 对照/)
+  assert.match(desc, /第一幕 · 码头 → 甲曲 — A/)
+  assert.match(desc, /第二幕 · 机库 → 乙曲 — B/)
+  assert.ok(desc.length <= 1000, `说明不该超过网易云的长度上限，实际 ${desc.length}`)
 
   const review = await fsp.readFile(path.join(dir, 'bgm', 's1.review.md'), 'utf8')
   assert.match(review, /合并表/)
@@ -388,4 +399,38 @@ test('探针模式：每段只分析前 3 首并返回池子匹配度', async ()
     assert.ok(p.poolMatch > 0, '应给出池子匹配度')
   }
   assert.equal(typeof run.durationMs, 'number', '每个工具都应返回 durationMs')
+})
+
+// ---------------------------------------------------------------- 歌单说明（场景 → BGM 对照）
+
+test('歌单说明：带上「场景 → 曲目」，并按长度上限压缩', async () => {
+  const { renderPlaylistDesc } = await import('../lib/format.js')
+  const cue = (no, scene, title, artist) => ({
+    id: `c${no}`, scene, trigger: '', need_bgm: true, state: 'ready',
+    target: [{ tag: 'dark', weight: 1 }], picks: { primary: { song_id: no, title, artist } },
+    candidates: [{ song_id: no, title, artist, album: '', duration: 200 }]
+  })
+  const sheet = {
+    module: '周而复始', session: null, scope: 's1',
+    cues: [
+      cue(1, '开场 · 黑桑塔纳驶入曹庄镇', 'green to blue', '玩儿'),
+      cue(2, '张海伦的木屋', 'Light', 'Endless Melancholy'),
+      { id: 'c3', scene: '档案室', trigger: '', need_bgm: false, state: 'skipped', target: [], candidates: [], picks: null }
+    ]
+  }
+  const desc = renderPlaylistDesc([sheet])
+  assert.match(desc, /周而复始 · 备团配乐/)
+  assert.match(desc, /01 开场 · 黑桑塔纳驶入曹庄镇 → green to blue — 玩儿/)
+  assert.match(desc, /02 张海伦的木屋 → Light — Endless Melancholy/)
+  assert.doesNotMatch(desc, /档案室/, '不配乐的段不该进说明')
+  assert.match(desc, /共 2 段/)
+
+  // 段数多到超长时要压缩，并注明其余见 review.md
+  const many = {
+    module: '大模组', cues: Array.from({ length: 40 }, (_, i) =>
+      cue(i + 1, `很长的场景名称第 ${i + 1} 段 · 副标题也很长`, `曲名${i + 1}`, `艺人${i + 1}`))
+  }
+  const longDesc = renderPlaylistDesc([many], { maxChars: 900 })
+  assert.ok(longDesc.length <= 900, `说明不该超过上限，实际 ${longDesc.length}`)
+  assert.match(longDesc, /其余见 review\.md/)
 })

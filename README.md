@@ -138,7 +138,7 @@ node scripts/setup.mjs --app-id <AppID> --private-key <PrivateKey>
 | `bgm_pick` | 定选主选 + 备选；`song_id` 必须来自该段候选，否则整条拒绝 |
 | `bgm_view` | 只读查看（`cues` 看场景切分，`full` 逐首列候选与得分） |
 | `bgm_verify` | 只读自检：候选数 / 已分析数 / 池子匹配度 / 达标数 / top1 得分 |
-| `bgm_commit` | 建歌单 + 导出三份文件；`files` 支持跨 scope 合表；支持 `dry_run` |
+| `bgm_commit` | 建歌单 + 写歌单说明（场景 → BGM 对照）+ 导出三份文件；`files` 支持跨 scope 合表；支持 `dry_run` |
 | `bgm_tag` | 听感分析：56 个原生标签概率 + V/A + 段内得分 |
 
 设计约束：**agent 做判断，插件做检索、校验、落盘**。工具不替你决定"这段该配什么"，

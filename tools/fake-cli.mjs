@@ -2,6 +2,7 @@
 // 用法：process.env.NCM_CLI 指向本文件。
 
 const argv = process.argv.slice(2)
+import fsp from 'node:fs/promises'
 
 const TRACKS = [
   { originalId: 11, id: 'A'.repeat(32), name: 'The Cellar', duration: 240000, artists: [{ name: 'A' }], album: { name: 'OST' } },
@@ -64,6 +65,17 @@ if (argv[0] === 'playlist' && argv[1] === 'add') {
 }
 
 if (argv[0] === 'playlist' && argv[1] === 'remove') out({ removed: 0 })
+
+if (argv[0] === 'playlist' && argv[1] === 'updateName') out({ updated: true, name: val('--name') ?? '' })
+
+if (argv[0] === 'playlist' && argv[1] === 'updateDesc') {
+  // 测试要断言说明里真的带了「场景 → BGM」，所以把 desc 原样落一份
+  const desc = val('--desc') ?? ''
+  if (process.env.FAKE_DESC_LOG) {
+    await fsp.appendFile(process.env.FAKE_DESC_LOG, `${desc}\n<<<EOF>>>\n`, 'utf8')
+  }
+  out({ updated: true, descLength: desc.length })
+}
 
 process.stderr.write(`fake-cli: 未实现 ${argv.join(' ')}\n`)
 process.exit(2)
