@@ -34,7 +34,7 @@ DeepSeek Harness 插件 · 跑团（TRPG）备团配乐
 | **负向标签** | 每段可加「要压低的标签」（如 `happy` / `upbeat`），按乘性惩罚压低候选分数；工作台可增删、直接改权重，设置里可一键关掉 |
 | **人声识别** | CLAP 零样本判断「有没有人在唱」；`cue.vocal` 写 `none` 的段会按概率乘性压低人声曲（关掉后不探测、不惩罚） |
 | **内嵌工作台** | 试听、拖动进度、定选、改场景、单段重搜，写回同一份 `cues.json` |
-| **落地** | 新建或复用歌单（`日期-模组-BGM`），导出 `review.md` / `playlist.txt` / `playlist.csv` |
+| **落地** | 新建或复用歌单（`模组中文名-YYMMDD-作者`，如 `小瓢虫快回家-261119-枫笛`），导出 `review.md` / `playlist.txt` / `playlist.csv` |
 | **历史** | 每次建过的歌单都在工作台「历史」里，可回到那份表继续改 |
 
 ---
@@ -129,20 +129,37 @@ node scripts/setup.mjs --app-id <AppID> --private-key <PrivateKey>
 
 ## 工具
 
-插件向 agent 暴露 6 个工具：
+插件向 agent 暴露 7 个工具：
 
 | 工具 | 作用 |
 |---|---|
 | `bgm_init` | 建表 / 追加段 / 局部改段（`create` / `append` / `patch` / `replace`） |
 | `bgm_fetch` | 为指定段检索候选，单次最多 8 段，每段默认留 12 首；回传前 3 首歌名 |
-| `bgm_pick` | 定选主选 + 备选；`song_id` 必须来自该段候选，否则整条拒绝 |
+| `bgm_tag` | 听感分析：56 个原生标签概率 + V/A + 段内得分 |
 | `bgm_view` | 只读查看（`cues` 看场景切分，`full` 逐首列候选与得分） |
 | `bgm_verify` | 只读自检：候选数 / 已分析数 / 池子匹配度 / 达标数 / top1 得分 |
+| `bgm_pick` | 定选主选 + 备选；`song_id` 必须来自该段候选，否则整条拒绝 |
 | `bgm_commit` | 建歌单 + 写歌单说明（场景 → BGM 对照）+ 导出三份文件；`files` 支持跨 scope 合表；支持 `dry_run` |
-| `bgm_tag` | 听感分析：56 个原生标签概率 + V/A + 段内得分 |
 
 设计约束：**agent 做判断，插件做检索、校验、落盘**。工具不替你决定"这段该配什么"，
 但会拒绝一切幻觉出来的 `song_id`。
+
+---
+
+## 性能与稳定性
+
+**检索是主要耗时，但不是卡顿。** 每段约 5 次 `ncm-cli` 调用（搜歌单、读歌单曲目、搜歌），
+单段首次约 15–25 秒。这些调用走**异步子进程**，等待期间 DSH 照常响应——可以在
+`bgm_fetch` 跑着的时候切对话、翻历史、干别的。
+
+- **并发**：搜歌与搜歌单互不依赖，会同时发出；同一关键词命中的多个歌单也并发读取。
+- **只读缓存**：`search` / `playlist tracks` / `playlist created` 的结果在进程内缓存 10 分钟（400 条 FIFO）。
+  对同一批检索词 `force` 重抓基本是瞬时的；建歌单这类写操作会立刻清空缓存。
+- **分析分批落库**：见下文「听感分析」——每算完一首立即入库，中断最多损失当前一首。
+
+> 0.19.3 之前这里用的是**同步**子进程：一次多段 `bgm_fetch` 会把整个 DSH 事件循环按住几十秒，
+> 表现为切任何对话都停在「载入历史」。0.19.3 起改用异步 spawn，实测同一批调用下
+> 事件循环最大停顿从「整段 30 秒」降到 42 毫秒。
 
 ---
 
@@ -320,7 +337,7 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 ```json
 {
   "seedPlaylists": [3778678, 1234567],
-  "candidateLimit": 8,
+  "candidateLimit": 12,
   "fetchBudget": 200
 }
 ```
@@ -328,7 +345,7 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 | 字段 | 作用 |
 |---|---|
 | `seedPlaylists` | 种子歌单 id。留空时自动挑选：名字含模组名的那张 + 名字带 `bgm` 的大池子 |
-| `candidateLimit` | 每段保留几首候选，默认 8 |
+| `candidateLimit` | 每段保留几首候选，默认 12 |
 | `fetchBudget` | 单次 `bgm_fetch` 最多调几次接口，默认 200 |
 
 自动挑种子时会跳过名字含「华语 / 日系 / ACG / 其他 / 喜欢」的歌单——那些通常不是跑团向的。
@@ -366,23 +383,27 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 ```
 dsh-bgm-prep/
   lib/
-    index.js        6 个工具的实现与注册
-    ui.js           工作台 Host 侧：状态、路由、音频直链
+    index.js        7 个工具的实现与注册
+    ui.js           工作台 Host 侧：状态、路由、音频代理、工作流方法
     client.js       工作台前端（React，通过 ModuleLoader 加载）
-    ncm.js          ncm-cli 通道 + 开放平台 HTTP
+    ncm.js          ncm-cli 异步通道 + 开放平台 HTTP + 只读检索缓存
     netease.js      weapi 签名、播放直链、扫码登录
-    cookie.js       凭据存取、验证、从 Chrome 只读同步
-    search.js       歌单优先的检索策略
-    filter.js       归一化、去噪、去重、打分
+    cookie.js       播放凭据存取、验证、从 Chrome 只读同步
+    search.js       歌单优先的检索策略（检索并发在这里）
+    filter.js       候选归一化、去噪、去重
+    score.js        段内打分：目标权重 × 模型概率
+    target.js       场景 → 目标标签 + 权重
+    tags.js         词表：music2emo 的原生标签
+    tagLabels.js    56 个标签的中文显示名
     store.js        曲目表读写、校验、派生状态
     format.js       三种导出格式
-    tagLabels.js    56 个标签的中文显示名
-    analysisDb.js   分析结果 SQLite 库（song_id + engine）
-    tag.js          （保留）CLAP 兜底：换直链、起 Python
-    match.js        （保留）旧的中文概念映射，仅 CLAP 兜底用
+    analysisDb.js   分析结果 SQLite 库
+    analyze.js      调 music2emo 分析，分批 + 逐首落库
+    audioProxy.js   试听音频转发（宿主直连 CDN）
+    num.js          数值清洗：把「缺失」和「零」分开
   tools/m2e/analyze.py   music2emo 推理（Python 侧）
-  tools/tag/analyze.py   （保留）CLAP 推理
-  skills/bgm-prep/       会话用的 skill：流程 + 词表快照（软链到 $DSH_HOME/skills）
+  tools/fake-cli.mjs     测试用假 ncm-cli
+  skills/bgm-prep/       会话用的 skill：流程 + 词表快照
   scripts/setup.mjs      凭据 / 登录 / 自检
   test/                  单元测试
   docs/                  交互协议与设计记录

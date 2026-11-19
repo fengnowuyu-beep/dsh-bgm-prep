@@ -100,6 +100,66 @@ test('端到端（离线四件套）：init → view → pick → commit', async
   assert.equal(commit2.playlistId, '9'.repeat(32), '应复用已有歌单')
 })
 
+// 歌单命名：模组中文名-YYMMDD-作者（作者默认枫笛），且总长 ≤ 40 GBK 字节
+async function previewPlaylistName(module) {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-name-'))
+  const file = path.join(dir, 'bgm', 'name.cues.json')
+  const tools = loadTools()
+  const exec = execFor(dir)
+  await tools.get('bgm_init').execute({ file, module, scope: 'name', cues: [{ scene: 'a', need_bgm: true }] }, exec)
+  const sheet = JSON.parse(await fsp.readFile(file, 'utf8'))
+  sheet.cues[0].candidates = [{ song_id: 1, encrypted_id: 'X'.repeat(32), title: 't', artist: 'a', album: '', duration: 200 }]
+  sheet.cues[0].picks = { primary: { song_id: 1, why: '测试' }, alts: [] }
+  await fsp.writeFile(file, JSON.stringify(sheet, null, 2), 'utf8')
+  const preview = await tools.get('bgm_commit').execute({ file, dry_run: true }, exec)
+  assert.equal(preview.ok, true, JSON.stringify(preview))
+  return preview.playlist
+}
+
+const gbkLength = (text) => {
+  let units = 0
+  for (const ch of text) units += ch.codePointAt(0) <= 0x7f ? 1 : 2
+  return units
+}
+
+test('歌单命名：模组中文名-YYMMDD-作者，英文副标题不进名字', async () => {
+  const name = await previewPlaylistName('小瓢虫快回家 LADYBUG, LADYBUG, FLY AWAY HOME')
+  const d = new Date()
+  const yymmdd = `${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  assert.equal(name, `小瓢虫快回家-${yymmdd}-枫笛`)
+  assert.ok(gbkLength(name) <= 40, `GBK ${gbkLength(name)} 字节：${name}`)
+})
+
+test('歌单名超过 40 个 GBK 字节要截断（网易云 create 会直接回 500）', async () => {
+  // 24 个汉字 = 48 字节，加日期作者必然超限
+  const long = '一个特别特别特别特别特别特别长的模组中文名字'
+  const name = await previewPlaylistName(long)
+  assert.ok(gbkLength(name) <= 40, `GBK ${gbkLength(name)} 字节：${name}`)
+  assert.match(name, /…/, '截断应带省略号，避免断在半截')
+  assert.match(name, /-\d{6}-枫笛$/, '日期和作者不能被截掉')
+})
+
+test('歌单绑定要能读回来：commit 第二次必须复用同一个歌单', async () => {
+  // normalizeSheet 曾经把 playlist_id / playlist_name 丢掉 → 每次 commit 都新建同名歌单。
+  // fake CLI 的 create 返回固定 id，所以旧的幂等断言看不出来；这里直接改 id 再读回。
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-reuse-'))
+  const file = path.join(dir, 'bgm', 'reuse.cues.json')
+  const tools = loadTools()
+  const exec = execFor(dir)
+
+  await tools.get('bgm_init').execute({ file, module: '复用测试', scope: 'reuse', cues: [{ scene: 'a', need_bgm: true }] }, exec)
+  const sheet = JSON.parse(await fsp.readFile(file, 'utf8'))
+  sheet.cues[0].candidates = [{ song_id: 1, encrypted_id: 'X'.repeat(32), title: 't', artist: 'a', album: '', duration: 200 }]
+  sheet.cues[0].picks = { primary: { song_id: 1, why: '测试' }, alts: [] }
+  sheet.playlist_id = '7'.repeat(32)
+  sheet.playlist_name = 'day-module-BGM'
+  await fsp.writeFile(file, JSON.stringify(sheet, null, 2), 'utf8')
+
+  const preview = await tools.get('bgm_commit').execute({ file, dry_run: true }, exec)
+  assert.equal(preview.ok, true, JSON.stringify(preview))
+  assert.equal(preview.playlistId, '7'.repeat(32), '已绑定的歌单 id 必须读得回来')
+})
+
 test('patch 模式只改指定段，不动其它段的选曲', async () => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-prep-'))
   const file = path.join(dir, 'bgm', 'x.cues.json')
@@ -121,6 +181,27 @@ test('patch 模式只改指定段，不动其它段的选曲', async () => {
   assert.equal(after.cues[0].picks.primary.why, '保留我')
   assert.equal(after.cues[1].scene, 'b 改名')
 })
+// 回归：DSH 的工具 schema 校验不接受 type 数组（如 ['number','null']）。
+// 2026-11-19 因为 bgm_tag 的 probes.poolMatch 写了 type 数组，整个插件在加载阶段就 failed，
+// 七个工具一个都注册不上——单测全绿也发现不了，只有真加载才看得见。
+test('工具 schema 兼容 DSH 校验：每个 type 都必须是单个字符串', () => {
+  const tools = loadTools()
+  const bad = []
+  const walk = (node, at) => {
+    if (!node || typeof node !== 'object') return
+    if (Array.isArray(node.type)) bad.push(`${at}.type = ${JSON.stringify(node.type)}`)
+    for (const [key, value] of Object.entries(node)) {
+      if (key === 'type') continue
+      walk(value, `${at}.${key}`)
+    }
+  }
+  for (const [name, tool] of tools) {
+    walk(tool.parameters, `${name}.parameters`)
+    walk(tool.output?.schema, `${name}.output`)
+  }
+  assert.deepEqual(bad, [], `DSH 不支持 type 数组：${bad.join('; ')}`)
+})
+
 test('bgm_init 写 avoidTargets：按实际数量归一化，表格里能看到负向标签', async () => {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-avoid-'))
   const file = path.join(dir, 'bgm', 'a.cues.json')

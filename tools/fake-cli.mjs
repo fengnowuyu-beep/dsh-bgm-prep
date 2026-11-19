@@ -4,6 +4,17 @@
 const argv = process.argv.slice(2)
 import fsp from 'node:fs/promises'
 
+// 测试开关：
+//   FAKE_CLI_DELAY_MS —— 每次调用先睡这么久，用来复现「CLI 慢」并观察主进程是否被阻塞
+//   FAKE_CLI_LOG      —— 把每次调用的参数追加进去，用来数调用次数（缓存命中与否）
+if (process.env.FAKE_CLI_LOG) {
+  await fsp.appendFile(process.env.FAKE_CLI_LOG, `${argv.join(' ')}\n`, 'utf8').catch(() => {})
+}
+const delayMs = Number(process.env.FAKE_CLI_DELAY_MS || 0)
+if (Number.isFinite(delayMs) && delayMs > 0) {
+  await new Promise((resolve) => setTimeout(resolve, delayMs))
+}
+
 const TRACKS = [
   { originalId: 11, id: 'A'.repeat(32), name: 'The Cellar', duration: 240000, artists: [{ name: 'A' }], album: { name: 'OST' } },
   { originalId: 12, id: 'B'.repeat(32), name: 'The Cellar (Live)', duration: 240000, artists: [{ name: 'A' }], album: { name: 'Live' } },

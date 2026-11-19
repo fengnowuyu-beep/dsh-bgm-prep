@@ -1,5 +1,56 @@
 # 变更记录
 
+## 0.19.3 — 2026-11-19
+
+**修 `bgm_fetch` 运行期间整个 DSH 卡死（用户 2026-11-19 报告：切任何对话都停在「载入历史」）。**
+
+- **根因**：`lib/ncm.js` 的 `cli()` 用 `spawnSync` 起 ncm-cli。同步子进程会在它整个生命周期内
+  钉死 Node 的事件循环，而插件与 DSH 的 Web 服务、会话读写同进程——所以一次 fetch 里 5 次
+  CLI 调用串起来约 25 秒，这期间「读会话历史」的请求全在排队，用户只能强杀 DSH。
+  单次超时 90 秒还会把最坏情况放大到一分半。
+- **第一层（消除卡死）**：`cli()` 改为异步 `spawn` + Promise（新增 `runCliProcess`），
+  超时改为定时器 + `SIGKILL`，输出上限与前缀分类（`no-cli` / `cli-not-logged-in` / `cli-failed`）
+  全部保持不变；另加 `cli-timeout` 区分超时，不再报成误导性的 `exit null`。
+  实测：真实 2 段 fetch 用时 32.9 秒，**事件循环最大停顿 42ms**（改之前是整段 32.9 秒全程占住）。
+- **第二层（顺带变快）**：
+  - 检索并发：`collectForCue` 里搜歌与搜歌单互不依赖，现在搜歌先全部发出、歌单命中的
+    两个歌单并发读取；`loadSeedTracks` 的两个种子歌单也改成并发。曲目次序与预算记账语义不变。
+  - 只读命令进程内缓存（`search` / `playlist tracks` / `playlist created` / `login --check`，
+    10 分钟 TTL、400 条 FIFO），并把同一关键词的并发请求并到一次调用上；写操作不进缓存
+    且会立刻清空缓存。实测 `force` 重抓同一批词从 32.9 秒降到 **11 毫秒**。
+- **回归测试 2 条**（`test/nonblocking.test.mjs`，共 118 个测试）：用假 CLI 的
+  `FAKE_CLI_DELAY_MS` 模拟慢网络，断言 fetch 期间事件循环最大停顿 < 300ms；
+  以及同检索词第二轮不再起进程。给假 CLI 加了 `FAKE_CLI_LOG` 便于数调用次数。
+  已反向验证：换回 `spawnSync` 时该用例判定为阻塞 456ms，确实会失败。
+
+## 0.19.2 — 2026-11-19
+
+**歌单命名改为「模组中文名-YYMMDD-作者」（用户 2026-11-19 指定）。**
+
+- 例：`小瓢虫快回家-261119-枫笛`。
+- 只取 module 开头的中文段：`小瓢虫快回家 LADYBUG, LADYBUG, FLY AWAY HOME` → `小瓢虫快回家`；
+  没有中文时退回整串。
+- 作者默认 `枫笛`，可在 `settings.json` 的 `playlistAuthor` 改。
+- 超过 40 个 GBK 字节时只截模组名并补 `…`，日期和作者保留。
+- 已有歌单下次 commit 会按新格式改名（`playlist_name` 不一致时自动 rename）。
+
+## 0.19.1 — 2026-11-19
+
+**修三个实跑才暴露的问题：插件加载、歌单名 500、重复建歌单。**
+
+- **插件加载失败（0.19.0 起七个工具全都注册不上）**：`bgm_tag` 输出 schema 里
+  `probes.items.poolMatch` 写成了 `type: ['number', 'null']`，DSH 的工具 schema 校验不支持
+  type 数组，整条 patch 挂载即被拒：`unsupported JSON schema: ... type must be a single type string`。
+  改成 `type: 'number'`，样本不足时不写该字段（render 本来就用 `== null` 判断）。
+- **建歌单回 500「创建歌单失败」**：网易云的 40 字上限是按 **GBK 字节**算的（中文 2、ASCII 1），
+  不是字符数、也不是 UTF-8 字节。实测 40 字节通过、41 回 500。
+  `playlistNameFor()` 改为按 GBK 预算截断，断在整词处并补 `…`；500 的错误提示也写明这条。
+- **commit 每次新建同名歌单**：`normalizeSheet()` 没保留 `playlist_id` / `playlist_name`，
+  读回来就丢，commit 永远以为「还没有歌单」。幂等单测之所以没发现，是因为 fake CLI 的
+  create 返回固定 id。现在这两个字段原样保留，并加了一条「改写 id 再读回」的断言。
+- 回归单测 3 条：schema 不许出现 type 数组、歌单名 ≤ 40 GBK 字节、歌单 id 读得回来（共 115 个测试）。
+- 用「小瓢虫快回家」实跑验证：10 段 / 71 首候选全部标注；9 首入歌单，第二次 commit 新增 0 首。
+
 ## 0.19.0 — 2026-11-19
 
 **建歌单时把「场景 → BGM」对照写进网易云的歌单说明。**
