@@ -1,6 +1,6 @@
 {
   "name": "dsh-bgm-prep",
-  "version": "0.17.1",
+  "version": "0.17.2",
   "private": true,
   "description": "跑团备团配乐：把场景清单变成带标签的曲目表，导出可粘贴歌单清单 · TRPG session-prep BGM cue sheets",
   "repository": {

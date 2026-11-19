@@ -356,7 +356,7 @@ test('人声识别：新歌分析时一并写回 vocal', async () => {
   assert.deepEqual(log.map((l) => l.jobMode), ['full'], '不需要额外的人声批次')
 })
 
-test('默认整曲分析（clip_seconds=0），配置成 120 时会带上去', async () => {
+test('默认只分析前 120 秒，配置成 0 时按整曲', async () => {
   await configure()
   process.env.FAKE_MODE = 'ok'
   process.env.FAKE_LOG = fakeLog
@@ -365,19 +365,19 @@ test('默认整曲分析（clip_seconds=0），配置成 120 时会带上去', a
   const run = await analyzeTracks([track(9201)])
   assert.equal(run.ok, true, JSON.stringify(run))
   let log = await readFakeLog()
-  assert.equal(log[0].clip, 0, '默认不裁剪，整曲分析')
+  assert.equal(log[0].clip, 120, '默认裁剪到 120 秒')
 
-  await configure({ clipSeconds: 120 })
+  await configure({ clipSeconds: 0 })
   await clearFakeLog()
   await analyzeTracks([track(9202)])
   log = await readFakeLog()
-  assert.equal(log[0].clip, 120, '显式配置后应传 120')
+  assert.equal(log[0].clip, 0, '显式配 0 = 整曲')
 })
 
-test('分析用的音质默认 standard，试听不受影响', async () => {
+test('分析用 320k，试听不受影响', async () => {
   const { engineConfig } = await import('../lib/analyze.js')
   const config = await engineConfig()
-  assert.equal(config.quality, 'standard')
+  assert.equal(config.quality, 'high')
   // 试听走 ui.js 的 songUrl 默认值（lossless），与这里无关
 })
 

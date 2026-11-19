@@ -222,11 +222,12 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 
 **失败负缓存与熔断**（0.17）：单曲失败两次后进 **10 分钟冷却**（`analysis_failures` 表），冷却期内 `bgm_tag` 直接跳过，不再为它等一次超时；连续 **8 首**失败熔断本次调用（`breakerLimit`）。`remaining` 只统计「从未尝试」的歌，失败待重试单独用 `retryLater` 报——修掉了旧版那个来回跳动的计数。
 
-**整曲分析 + 只下 128k**（0.17.1）：`clipSeconds` 默认 **0**（不裁剪，整曲分析），`quality` 默认 **standard（128k MP3）**。
-实测同一首歌 128k / 320k / 无损 FLAC 的 56 维概率几乎逐位相同（`Nara` 上整首得分 0.315 vs 0.334、top1 都是 epic；`Death Waltz` 上完全一致），
-而 FLAC 是 128k 的 5–7 倍体积（32.6MB vs 4.4MB）。**试听仍走 lossless**，两者互不影响。
-裁剪到 120 秒虽然能省约一半推理时间，但会让得分系统性偏离整曲判断，且短取样会改变 top1 标签——所以默认不裁。
-（若确实要裁，在 `settings.json` 的 `analysis` 段写 `"clipSeconds": 120`，音频缓存会自动带 `-c120` 后缀，不与整曲缓存混用。）
+**取前 120 秒 + 只下 320k**（0.17.2）：`clipSeconds` 默认 **120**，`quality` 默认 **high（320k MP3）**。
+音质上，320k 与无损 FLAC 的 56 维概率逐位相同（`Nara` 整首 0.334 vs 0.334，top1 同为 epic，余弦 0.991），
+而 FLAC 是 320k 的 3 倍体积（32.6MB vs 11.1MB）；128k 更快 0.1s/首，但个别歌得分会漂约 5%，因此不用。
+取样上，前 120 秒把推理从 6.5s 降到 2.8s，代价是得分系统性偏低（排序 ρ ≈ 0.93，个别歌 top1 会变）——
+要整曲就把 `clipSeconds` 设成 `0`，音频缓存会自动按 `-c<秒>` 分文件名，两种口径不会混用。
+**试听始终走 lossless**，与分析无关。
 
 **音频缓存**：解码后的 24 kHz mono wav 落在 `$DSH_HOME/bgm-prep/cache/audio/<song_id>-<版本>.wav`，同一首歌重跑不再下载；默认上限 5 GB，按最近使用时间淘汰。`%TEMP%` 下不再留 `m2e-*`。下载/解码默认 **3 路并发**，与推理重叠。`analysis.db` 不可用时自动退回 JSON 缓存，返回值里的 `store` 会标出来。
 
