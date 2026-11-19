@@ -222,7 +222,11 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 
 **失败负缓存与熔断**（0.17）：单曲失败两次后进 **10 分钟冷却**（`analysis_failures` 表），冷却期内 `bgm_tag` 直接跳过，不再为它等一次超时；连续 **8 首**失败熔断本次调用（`breakerLimit`）。`remaining` 只统计「从未尝试」的歌，失败待重试单独用 `retryLater` 报——修掉了旧版那个来回跳动的计数。
 
-**只分析开头 120 秒**（0.17）：`clipSeconds` 默认 120，先按字节上限发 `Range` 请求取前段（截断的音频解不出来就退回整曲下载），解码后裁到 120 秒再推理。情绪判断在这段窗口内基本稳定，成本降到约 1/3；音频缓存文件名带上 `-c120`，不同窗口不会混用。
+**整曲分析 + 只下 128k**（0.17.1）：`clipSeconds` 默认 **0**（不裁剪，整曲分析），`quality` 默认 **standard（128k MP3）**。
+实测同一首歌 128k / 320k / 无损 FLAC 的 56 维概率几乎逐位相同（`Nara` 上整首得分 0.315 vs 0.334、top1 都是 epic；`Death Waltz` 上完全一致），
+而 FLAC 是 128k 的 5–7 倍体积（32.6MB vs 4.4MB）。**试听仍走 lossless**，两者互不影响。
+裁剪到 120 秒虽然能省约一半推理时间，但会让得分系统性偏离整曲判断，且短取样会改变 top1 标签——所以默认不裁。
+（若确实要裁，在 `settings.json` 的 `analysis` 段写 `"clipSeconds": 120`，音频缓存会自动带 `-c120` 后缀，不与整曲缓存混用。）
 
 **音频缓存**：解码后的 24 kHz mono wav 落在 `$DSH_HOME/bgm-prep/cache/audio/<song_id>-<版本>.wav`，同一首歌重跑不再下载；默认上限 5 GB，按最近使用时间淘汰。`%TEMP%` 下不再留 `m2e-*`。下载/解码默认 **3 路并发**，与推理重叠。`analysis.db` 不可用时自动退回 JSON 缓存，返回值里的 `store` 会标出来。
 
