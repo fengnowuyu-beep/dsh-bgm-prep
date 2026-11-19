@@ -10,7 +10,10 @@ const TRACKS = [
   { originalId: 14, id: 'D'.repeat(32), name: 'Deep Halls', duration: 180000, artists: [{ name: 'C' }], album: { name: 'Vol.2' } },
   { originalId: 15, id: 'E'.repeat(32), name: '封面 翻唱', duration: 200000, artists: [{ name: 'D' }], album: { name: 'x' } },
   { originalId: 16, id: 'F'.repeat(32), name: '静默前奏', duration: 60, artists: [{ name: 'E' }], album: { name: 'y' } },
-  { originalId: 17, id: 'G'.repeat(32), name: 'Sold Out', duration: 200000, artists: [{ name: 'F' }], album: { name: 'z' }, playFlag: false }
+  { originalId: 17, id: 'G'.repeat(32), name: 'Sold Out', duration: 200000, artists: [{ name: 'F' }], album: { name: 'z' }, playFlag: false, noCopyrightRcmd: { type: 1, typeName: '无版权' } },
+  { originalId: 18, id: 'H'.repeat(32), name: '只能试听', duration: 200000, artists: [{ name: 'G' }], album: { name: 'w' }, freeTrialPrivilege: { cannotListenReason: 1 } },
+  { originalId: 19, id: 'I'.repeat(32), name: '播放权限为负', duration: 200000, artists: [{ name: 'H' }], album: { name: 'v' }, privilege: { st: -200 } },
+  { originalId: 20, id: '0123456789abcdef0123456789abcdef', name: '歌单里的常规曲目', duration: 200000, artists: [{ name: 'I' }], album: { name: 'u' }, playFlag: false }
 ]
 
 const NOT_LOGGED = () => {

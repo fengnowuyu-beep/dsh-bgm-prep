@@ -225,6 +225,16 @@ huggingface-cli download m-a-p/MERT-v1-95M --local-dir E:\Software\audioml-m2e\m
 **剩下的歌重开一批继续**（不是整批重来）；整次预算为 `min(perSongTimeoutMs × 1.5 × 本次首数, totalBudgetMs)`（默认封顶 90 分钟），
 到点优雅收尾并保留已落库结果。
 
+**缓存口径进键**（0.18）：`analysis.db` 的键是 `music2emo-v1-q{音质}-c{裁剪秒数}`，音频缓存文件名同样带音质。
+换了 `quality` / `clipSeconds` 就是新键，旧结果自然失效——不会再出现「同一张表里混着整曲和 120 秒两种口径的得分」。
+
+**试听音质**（0.18）：工作台试听走 `previewQuality`（默认 `standard`，128k，一首约 4MB）。
+以前默认拉**无损**（20–32MB），点一下要等整首下完才出声；想听好一点把 `previewQuality` 改成 `high` / `lossless`。
+分析用的音质是另一条线（`analysis.quality`），两者互不影响。
+
+**基准脚本**（0.18）：`node scripts/benchmark.mjs --song-id 1303708`（或 `--sheet <cues.json> --cue s2`）
+会跑「3 音质 × 4 取样」并生成一份可交互 HTML 报告，用来决定默认值该往哪边调。
+
 **失败负缓存与熔断**（0.17）：单曲失败两次后进 **10 分钟冷却**（`analysis_failures` 表），冷却期内 `bgm_tag` 直接跳过，不再为它等一次超时；连续 **8 首**失败熔断本次调用（`breakerLimit`）。`remaining` 只统计「从未尝试」的歌，失败待重试单独用 `retryLater` 报——修掉了旧版那个来回跳动的计数。
 
 **取前 120 秒 + 只下 320k**（0.17.2）：`clipSeconds` 默认 **120**，`quality` 默认 **high（320k MP3）**。

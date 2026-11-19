@@ -1,5 +1,65 @@
 # 变更记录
 
+## 0.18.0 — 2026-11-19
+
+**第二轮实跑后的系统性修复：池子为什么薄、试听为什么慢、缓存为什么会串口径。**
+
+### 池子只有 5 首？真正的原因是两个闸门
+
+- **`playFlag === false` 被当成「不可播」硬过滤**：实测 173 首原始结果里 131 首被这个字段判死，
+  抽 3 首去换直链**全部有 URL**（`maxBr=999000`，无损可播）。等于凭空扔掉了 76% 的候选池。
+  现在只看硬信号：`noCopyrightRcmd`、`freeTrialPrivilege.cannotListenReason`、`privilege.st < 0`。
+- **`min_len` 当最短时长闸门**：一段给了 `min_len: 240`，而「孤独悲伤的钢琴曲」这类歌单里
+  大量 2–3.5 分钟的钢琴小品被整批砍掉（23/28 首）。这是设计意图，但**没有提示**——
+  现在 `bgm_fetch` 的 note 里会写「被时长闸门丢掉 N 首」。
+- NOISE 补 `type beat / sped up / slowed / nightcore / karaoke / 8d / mashup`：
+  实测这些真的进过候选头部（关键词分 12 排第一）。
+
+### 缓存口径
+
+- `analysis.db` 的键从 `music2emo-v1` 改成 **`music2emo-v1-q{音质}-c{裁剪秒数}`**。
+  换音质或裁剪长度就是新键，旧结果自然失效，不会再出现「同一张表里混着两种口径的得分」。
+- 音频缓存文件名同样带上音质（`-qhigh`）。
+- 已按用户要求清库：删掉 217 条旧口径分析、285 个音频缓存（2.84 GB），此后一切重算。
+
+### 探针预检
+
+- `bgm_tag` 新增 `probe: true`：每段只分析前 3 首，返回各段 `poolMatch`，
+  几段一共约 1 分钟就能判出「哪段池子不行、要不要换检索词重抓」，而不是白算完 8 首才发现。
+
+### 可诊断性
+
+- **每个工具返回 `durationMs`**，不用再手工计时。
+- `analyze.py` 现在逐首吐 `ms: {prepare, predict, vocal}`，并分阶段报
+  `model_load / clap_load / first_track / cleanup`；`bgm_tag` 的返回里汇总成 `timings`。
+  这一项就是用来回答「这次为什么慢」「批边界那 38 秒去哪了」的。
+- `bgm_tag` 会校验 `batchSize` 是否为 `candidateLimit` 的整数倍，不是就提示「批边界没对齐段边界」。
+
+### `bgm_view` 与工作台口径统一
+
+- `bgm_view`、`review.md` 的得分改成**按当前 target / 负向权重实时算**，不再读落盘的 `candidate.score`
+  （那是上一次 `bgm_tag` 的快照，改完权重就过期）。
+
+### 工作台试听变快
+
+- 试听直链新增 `previewQuality` 设置，默认 **standard（128k）**：一首约 4MB，点了就响；
+  以前拉的是**无损**（20–32MB），要等整首下完才开始播。
+  想听好一点把它改成 `high` / `lossless` 即可。
+- Blob 缓存从「最近 3 首」提到 **8 首**，来回切歌不再每次重下。
+
+### 基准脚本固化
+
+- 新增 `scripts/benchmark.mjs` + `tools/m2e/benchmark.py` + `tools/m2e/benchmark-report.html`：
+  `node scripts/benchmark.mjs --song-id 1303708`（或 `--sheet <cues.json> --cue s2`）
+  直接产出「3 音质 × 4 取样」的可交互 HTML。今天改过 4 次默认值，以后不用再手写临时脚本。
+
+### skill
+
+- 去掉硬编码的「每段 12 首 / 每次 24 首」，改成描述行为；补上探针预检步骤、
+  `force` 会覆盖生产缓存的警告、以及「返回里带 timings」。
+
+测试 111 个通过。
+
 ## 0.17.4 — 2026-11-19
 
 **实跑《周而复始》6 段后修掉三个问题。**

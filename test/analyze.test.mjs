@@ -20,7 +20,7 @@ await fsp.mkdir(codeDir, { recursive: true })
 await fsp.mkdir(modelsDir, { recursive: true })
 await fsp.mkdir(path.join(home, 'bgm-prep'), { recursive: true })
 
-const { analyzeTracks, deriveBudgetMs } = await import('../lib/analyze.js')
+const { analyzeTracks, deriveBudgetMs, cacheKeyOf, engineConfig } = await import('../lib/analyze.js')
 const { readAnalysis, writeAnalysis } = await import('../lib/analysisDb.js')
 
 // 取播放直链要打网易云；测试里把它换成固定 URL，不真的发请求。
@@ -50,6 +50,11 @@ async function configure(extra = {}) {
     ...extra
   }
   await fsp.writeFile(path.join(home, 'bgm-prep', 'settings.json'), JSON.stringify({ analysis }, null, 2), 'utf8')
+}
+
+/** 当前配置对应的缓存键：quality / clipSeconds 都会进键，所以每个用例现算。 */
+async function cacheKey() {
+  return cacheKeyOf(await engineConfig())
 }
 
 async function clearFakeLog() {
@@ -88,7 +93,7 @@ test('NDJSON：逐首解析并写入 analysis.db', async () => {
   assert.equal(run.stopReason, '')
   assert.equal(run.store, 'sqlite')
   for (const item of tracks) {
-    const hit = await readAnalysis(item.song_id, 'test-v1')
+    const hit = await readAnalysis(item.song_id, await cacheKey())
     assert.ok(hit, `song ${item.song_id} 应已落库`)
     assert.equal(hit.probs.dark, 0.5)
     assert.equal(hit.va.valence, 3)
@@ -111,8 +116,8 @@ test('partial：总预算到点，已落库的不丢', async () => {
   assert.equal(run.partial, true)
   assert.equal(run.remaining, 3)
   assert.equal(run.stopReason, 'budget')
-  assert.ok(await readAnalysis(2001, 'test-v1'), '被杀之前算完的那首必须已经落库')
-  assert.equal(await readAnalysis(2002, 'test-v1'), null)
+  assert.ok(await readAnalysis(2001, await cacheKey()), '被杀之前算完的那首必须已经落库')
+  assert.equal(await readAnalysis(2002, await cacheKey()), null)
 })
 
 test('批次切分：batchSize 决定 spawn 次数', async () => {
@@ -147,9 +152,9 @@ test('单首超时：只放弃这一首，剩下的重开一批继续', async ()
   assert.equal(run.partial, false)
   assert.equal(run.remaining, 0)
   assert.match(String(run.results['4002'].error), /超时/)
-  assert.ok(await readAnalysis(4001, 'test-v1'))
-  assert.ok(await readAnalysis(4003, 'test-v1'))
-  assert.equal(await readAnalysis(4002, 'test-v1'), null)
+  assert.ok(await readAnalysis(4001, await cacheKey()))
+  assert.ok(await readAnalysis(4003, await cacheKey()))
+  assert.equal(await readAnalysis(4002, await cacheKey()), null)
 })
 
 test('老版单 JSON 输出仍能兜底', async () => {
@@ -163,8 +168,8 @@ test('老版单 JSON 输出仍能兜底', async () => {
   assert.equal(run.ok, true)
   assert.equal(run.analyzed, 2)
   assert.equal(run.batches, 1)
-  assert.ok(await readAnalysis(5001, 'test-v1'))
-  assert.ok(await readAnalysis(5002, 'test-v1'))
+  assert.ok(await readAnalysis(5001, await cacheKey()))
+  assert.ok(await readAnalysis(5002, await cacheKey()))
 })
 
 test('已入库的歌不再 spawn 分析进程', async () => {
@@ -179,8 +184,8 @@ test('已入库的歌不再 spawn 分析进程', async () => {
     engine: 'test-v1',
     at: '2026-11-18T00:00:00.000Z'
   }
-  await writeAnalysis(6001, 'test-v1', payload)
-  await writeAnalysis(6002, 'test-v1', payload)
+  await writeAnalysis(6001, await cacheKey(), payload)
+  await writeAnalysis(6002, await cacheKey(), payload)
 
   const run = await analyzeTracks([track(6001), track(6002)])
 
@@ -202,7 +207,7 @@ test('音频缓存与线程数传给 Python', async () => {
   const log = await readFakeLog()
   assert.equal(log.length, 1)
   assert.equal(log[0].cache.dir, path.join(home, 'bgm-prep', 'cache', 'audio'))
-  assert.equal(log[0].cache.version, 'test-v1')
+  assert.equal(log[0].cache.version, 'test-v1-qhigh', '音频缓存版本要带上音质')
   assert.equal(log[0].cache.max_bytes, 5 * 1024 * 1024 * 1024)
   assert.equal(log[0].cache.concurrency, 3)
   assert.equal(log[0].threads, '2')
@@ -323,7 +328,7 @@ test('人声识别：存量分析缺 vocal 时只补跑 CLAP，不重算情绪',
   process.env.FAKE_MODE = 'ok'
   process.env.FAKE_LOG = fakeLog
   await clearFakeLog()
-  await writeAnalysis(9001, 'test-v1', {
+  await writeAnalysis(9001, await cacheKey(), {
     probs: { dark: 0.5 }, va: { valence: 3, arousal: 5 }, stability: null, vocal: null,
     engine: 'test-v1', at: new Date().toISOString()
   })
@@ -334,7 +339,7 @@ test('人声识别：存量分析缺 vocal 时只补跑 CLAP，不重算情绪',
   assert.equal(run.vocalFilled, 1)
   assert.equal(run.results['9001'].vocal, 0.7)
 
-  const hit = await readAnalysis(9001, 'test-v1')
+  const hit = await readAnalysis(9001, await cacheKey())
   assert.equal(hit.vocal, 0.7)
 
   const log = await readFakeLog()
@@ -350,7 +355,7 @@ test('人声识别：新歌分析时一并写回 vocal', async () => {
   const run = await analyzeTracks([track(9101)])
   assert.equal(run.ok, true)
   assert.equal(run.results['9101'].vocal, 0.7)
-  const hit = await readAnalysis(9101, 'test-v1')
+  const hit = await readAnalysis(9101, await cacheKey())
   assert.equal(hit.vocal, 0.7)
   const log = await readFakeLog()
   assert.deepEqual(log.map((l) => l.jobMode), ['full'], '不需要额外的人声批次')
@@ -420,13 +425,13 @@ test('分析成功后清掉失败记录，下次照常尝试', async () => {
   await analyzeTracks([track(9501)])
 
   const { readFailure } = await import('../lib/analysisDb.js')
-  const cooling = await readFailure(9501, 'test-v1')
+  const cooling = await readFailure(9501, await cacheKey())
   assert.ok(cooling?.retryAfter, '两次失败后应写入冷却截止时间')
 
   // 用 force 绕过冷却，让这次成功，然后失败记录应被清掉
   process.env.FAKE_MODE = 'ok'
   const ok = await analyzeTracks([track(9501)], { force: true })
   assert.equal(ok.analyzed, 1)
-  const cleared = await readFailure(9501, 'test-v1')
+  const cleared = await readFailure(9501, await cacheKey())
   assert.equal(cleared, null)
 })

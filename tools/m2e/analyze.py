@@ -495,29 +495,46 @@ def main():
         return
 
     try:
+        t_load = time.perf_counter()
         model, mood_list = _load_model(job)
+        _emit({"phase": "model_load", "ms": round((time.perf_counter() - t_load) * 1000)})
     except Exception as exc:  # noqa: BLE001
         _emit({"error": f"加载 music2emo 失败：{type(exc).__name__}: {exc}",
                "trace": traceback.format_exc()[-800:]})
         return
     clap = None
     if vocal_enabled:
+        t_clap = time.perf_counter()
         clap = _load_clap(vocal_cfg)
+        _emit({"phase": "clap_load", "ms": round((time.perf_counter() - t_clap) * 1000)})
 
     count = 0
     pool = ThreadPoolExecutor(max_workers=download_concurrency)
     try:
         # F5：下载/解码并发跑，推理仍按顺序。第一批的下载会被模型加载/推理盖住，
         # 后面的歌则在上一首推理时就已经落到缓存里。
+        t_submit = time.perf_counter()
         futures = [pool.submit(prepare, track) for track in tracks]
         for index, track in enumerate(tracks):
             sid = track.get("song_id")
             try:
+                # 每首的分解耗时：download 里含着解码（prepare = cache 命中 / 下载+解码），
+                # 这样「为什么这次慢」能直接从数据回答，不必再靠猜。
+                t_wait = time.perf_counter()
                 wav = futures[index].result()
+                ms_prepare = round((time.perf_counter() - t_wait) * 1000)
+                t_pred = time.perf_counter()
                 out = model.predict(wav)
+                ms_predict = round((time.perf_counter() - t_pred) * 1000)
+                t_vocal = time.perf_counter()
+                vocal_value = _vocal_prob(wav, clap) if clap else None
+                ms_vocal = round((time.perf_counter() - t_vocal) * 1000)
+                if index == 0:
+                    _emit({"phase": "first_track", "ms": round((time.perf_counter() - t_submit) * 1000)})
                 probs = out.get("probs") or []
                 _emit({
                     "song_id": sid,
+                    "ms": {"prepare": ms_prepare, "predict": ms_predict, "vocal": ms_vocal},
                     "result": {
                         "probs": {mood_list[i]: round(float(p), 4)
                                   for i, p in enumerate(probs) if i < len(mood_list)},
@@ -526,7 +543,7 @@ def main():
                             "arousal": round(float(out.get("arousal", 0.0)), 3),
                         },
                         "stability": None,
-                        "vocal": _vocal_prob(wav, clap) if clap else None,
+                        "vocal": vocal_value,
                     },
                 })
             except Exception as exc:  # noqa: BLE001
@@ -535,7 +552,9 @@ def main():
         _emit({"done": True, "count": count})
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
+        t_clean = time.perf_counter()
         _cleanup(cache_dir, cache_max_bytes, tmp_dir)
+        _emit({"phase": "cleanup", "ms": round((time.perf_counter() - t_clean) * 1000)})
 
 
 if __name__ == "__main__":

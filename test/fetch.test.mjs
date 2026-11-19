@@ -44,7 +44,10 @@ test('bgm_fetch 走通：搜歌 → 过滤 Live/翻唱/过短/不可播 → 写�
   assert.ok(!ids.includes(12), 'Live 版应被过滤')
   assert.ok(!ids.includes(15), '翻唱应被过滤')
   assert.ok(!ids.includes(16), '过短的应被过滤')
-  assert.ok(!ids.includes(17), 'playFlag=false 应被过滤')
+  assert.ok(!ids.includes(17), '版权下架（noCopyrightRcmd）应被过滤')
+  assert.ok(!ids.includes(18), '只能试听（cannotListenReason）应被过滤')
+  assert.ok(!ids.includes(19), '播放权限为负应被过滤')
+  assert.ok(ids.includes(20), 'playFlag=false 不再当硬信号：实测它大面积误杀可播曲目')
   assert.equal(new Set(ids).size, ids.length, '不应有重复')
   assert.ok(sheet.cues[0].candidates.every((c) => c.encrypted_id), '候选应带 encrypted_id')
 

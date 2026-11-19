@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配乐分析 · 音质 × 取样方案 对比</title>
+<style>
+  :root{--bg:#0e1117;--panel:#161b24;--panel2:#1c2230;--line:#2a3240;--text:#e7ebf3;--dim:#8b97ab;--accent:#6aa9ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 "Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:28px 22px 80px}
+  h1{font-size:21px;margin:0 0 6px;font-weight:650}
+  h2{font-size:15px;margin:34px 0 12px;font-weight:600;color:#cfd8e6;display:flex;align-items:center;gap:10px}
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
+  .meta{color:var(--dim);font-size:12.5px;line-height:1.9}.meta b{color:#c7d2e2}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 15px}
+  .card .k{color:var(--dim);font-size:12px}.card .v{font-size:20px;font-weight:650;margin-top:6px}
+  .card .s{color:var(--dim);font-size:11.5px;margin-top:4px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+  .seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--dim);padding:7px 13px;cursor:pointer;font-size:12.5px}
+  .seg button.on{background:#22304a;color:#dce7ff}
+  .hint{color:var(--dim);font-size:12px}
+  table{border-collapse:separate;border-spacing:0;width:100%}
+  .matrix{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .matrix th,.matrix td{padding:0;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .matrix th{background:#131923;color:var(--dim);font-weight:600;font-size:12px;padding:9px 10px;text-align:center}
+  .matrix th.rowh{text-align:left;padding-left:14px}
+  .matrix td.rowh{background:#131923;color:#c3cddd;font-size:12.5px;padding:10px 14px;white-space:nowrap}
+  .cell{padding:11px 10px;cursor:pointer;position:relative}
+  .cell:hover{outline:1px solid var(--accent);outline-offset:-1px}
+  .cell.sel{outline:2px solid var(--accent);outline-offset:-2px}
+  .cell .big{font-size:15px;font-weight:650}.cell .sub{font-size:11px;color:var(--dim);margin-top:2px}
+  .bars{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .bar-row{display:flex;align-items:center;gap:12px;padding:5px 0;cursor:pointer;border-radius:6px}
+  .bar-row:hover{background:#1b2333}.bar-row.sel{background:#1d2941}
+  .bar-name{width:190px;flex:none;font-size:12.5px;color:#c3cddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar-track{flex:1;display:flex;height:20px;border-radius:4px;overflow:hidden;background:#0f1520}
+  .bar-track div{height:100%}.bar-val{width:70px;flex:none;text-align:right;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0 0;font-size:12px;color:var(--dim)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .detail{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-top:12px;font-size:12.5px;color:#c3cddd;min-height:76px}
+  .detail .hd{color:#dce7ff;font-weight:600;margin-bottom:6px}
+  .detail .kv{display:flex;flex-wrap:wrap;gap:6px 22px;color:var(--dim)}
+  .detail .kv b{color:#e7ebf3;font-variant-numeric:tabular-nums}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .tag{background:#202a3c;border:1px solid #2d3a52;border-radius:20px;padding:2px 10px;font-size:11.5px;color:#b9c6db}
+  .tag b{color:#e7ebf3}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  .tbl{background:var(--panel);font-size:12.5px;min-width:840px}
+  .tbl th{position:sticky;top:0;background:#131923;color:var(--dim);padding:9px 10px;text-align:right;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap;user-select:none}
+  .tbl th:first-child,.tbl th:nth-child(2){text-align:left}
+  .tbl th.on{color:#dce7ff}
+  .tbl td{padding:8px 10px;text-align:right;border-bottom:1px solid #1b2230;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tbl td:first-child,.tbl td:nth-child(2){text-align:left}
+  .tbl tr{cursor:pointer}.tbl tr:hover td{background:#1a2231}.tbl tr.sel td{background:#1d2941}
+  .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11px}
+  .pill.same{background:#173327;color:#77e0ab}.pill.diff{background:#3a2430;color:#ff9aa9}
+  svg .dot{cursor:pointer}svg .dot:hover{r:7}
+  .foot{margin-top:34px;color:var(--dim);font-size:12px;line-height:1.9;border-top:1px solid var(--line);padding-top:16px}
+  ul.take{margin:8px 0 0 18px;padding:0;color:#c3cddd}ul.take li{margin:5px 0}
+  code{background:#1b2230;padding:1px 6px;border-radius:4px;font-size:12px;color:#a9c4ff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>配乐听感分析：音质 × 取样方案 对比</h1>
+  <div class="meta" id="meta"></div>
+  <div class="cards" id="cards"></div>
+
+  <h2>得分矩阵</h2>
+  <div class="toolbar">
+    <span class="hint">单元格显示：</span>
+    <span class="seg" id="metricSeg"></span>
+    <span class="hint">行 = 取样方案，列 = 音质。点格子看细节。</span>
+  </div>
+  <div class="matrix" id="matrix"></div>
+
+  <h2>时间构成</h2>
+  <div class="bars" id="bars"></div>
+  <div class="legend" id="legend"></div>
+
+  <h2>成本 vs 保真</h2>
+  <div class="hint">横轴 = 每首总耗时（含摊薄加载），纵轴 = 段内得分。左上角为理想区。</div>
+  <svg id="scatter" viewBox="0 0 880 330" style="width:100%;height:auto;margin-top:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px"></svg>
+
+  <h2>明细（点表头排序）</h2>
+  <div class="scroll"><table class="tbl" id="tbl"></table></div>
+
+  <div class="detail" id="detail"><div class="hd">点任意格子 / 条形 / 圆点 / 行</div><div class="kv">选中后会在这里显示这一组的完整数据与 top5 标签。</div></div>
+
+  <h2>读出来的结论</h2>
+  <ul class="take" id="take"></ul>
+  <div class="foot" id="foot"></div>
+</div>
+<script>
+const DATA = {"generatedAt":"2026-11-19 21:42","song":{"id":1070981,"title":"Death Waltz","duration":240,"durationText":"4:00"},"cue":{"id":"adhoc","scene":"自定义","target":[{"tag":"dark","weight":0.4},{"tag":"dramatic","weight":0.3},{"tag":"heavy","weight":0.3}]},"base":{"quality":"lossless","scheme":"full"},"loadMs":{"mert":9141,"clap":1131},"qualities":[{"key":"standard","label":"128k","name":"MP3 128k"},{"key":"high","label":"320k","name":"MP3 320k"},{"key":"lossless","label":"无损","name":"FLAC 无损"}],"schemes":[{"key":"full","label":"整首"},{"key":"120","label":"前 120s"},{"key":"60","label":"前 60s"},{"key":"3x10","label":"10/50/90 各 10s"}],"rows":[{"quality":"standard","qualityLabel":"128k","qualityName":"MP3 128k","scheme":"full","schemeLabel":"整首","bytesMB":4.08,"downloadMs":543,"decodeMs":2773,"predictMs":5566,"vocalMs":484,"audioSec":267.1,"vocalP":0.1127,"score":0.2745,"top":[["meditative",0.9124],["drama",0.8189],["relaxing",0.7879],["nature",0.7764],["film",0.7371]],"totalMs":9366,"dScore":-0.0055,"cosine":0.9999,"top1Match":true},{"quality":"standard","qualityLabel":"128k","qualityName":"MP3 128k","scheme":"120","schemeLabel":"前 120s","bytesMB":4.08,"downloadMs":543,"decodeMs":2773,"predictMs":2571,"vocalMs":445,"audioSec":120,"vocalP":0.0313,"score":0.2512,"top":[["film",0.8678],["meditative",0.8607],["drama",0.8463],["sad",0.7809],["nature",0.7624]],"totalMs":6332,"dScore":-0.0288,"cosine":0.9927,"top1Match":false},{"quality":"standard","qualityLabel":"128k","qualityName":"MP3 128k","scheme":"60","schemeLabel":"前 60s","bytesMB":4.08,"downloadMs":543,"decodeMs":2773,"predictMs":1365,"vocalMs":438,"audioSec":60,"vocalP":0.0146,"score":0.2041,"top":[["film",0.8723],["meditative",0.8591],["drama",0.8013],["relaxing",0.7852],["sad",0.771]],"totalMs":5119,"dScore":-0.0759,"cosine":0.9821,"top1Match":false},{"quality":"standard","qualityLabel":"128k","qualityName":"MP3 128k","scheme":"3x10","schemeLabel":"10/50/90 各 10s","bytesMB":4.08,"downloadMs":543,"decodeMs":2773,"predictMs":873,"vocalMs":428,"audioSec":30,"vocalP":0.0142,"score":0.1358,"top":[["film",0.8612],["relaxing",0.8184],["meditative",0.8136],["nature",0.8091],["drama",0.7727]],"totalMs":4617,"dScore":-0.1442,"cosine":0.9681,"top1Match":false},{"quality":"high","qualityLabel":"320k","qualityName":"MP3 320k","scheme":"full","schemeLabel":"整首","bytesMB":10.19,"downloadMs":1024,"decodeMs":893,"predictMs":5519,"vocalMs":480,"audioSec":267.1,"vocalP":0.1347,"score":0.2809,"top":[["meditative",0.9116],["drama",0.8213],["relaxing",0.7876],["nature",0.7704],["film",0.7418]],"totalMs":7916,"dScore":0.0009,"cosine":1,"top1Match":true},{"quality":"high","qualityLabel":"320k","qualityName":"MP3 320k","scheme":"120","schemeLabel":"前 120s","bytesMB":10.19,"downloadMs":1024,"decodeMs":893,"predictMs":2602,"vocalMs":466,"audioSec":120,"vocalP":0.0299,"score":0.2537,"top":[["film",0.8715],["meditative",0.8568],["drama",0.8476],["sad",0.7868],["nature",0.7603]],"totalMs":4985,"dScore":-0.0263,"cosine":0.9922,"top1Match":false},{"quality":"high","qualityLabel":"320k","qualityName":"MP3 320k","scheme":"60","schemeLabel":"前 60s","bytesMB":10.19,"downloadMs":1024,"decodeMs":893,"predictMs":1376,"vocalMs":473,"audioSec":60,"vocalP":0.0089,"score":0.2078,"top":[["film",0.8724],["meditative",0.8576],["drama",0.8069],["relaxing",0.7864],["sad",0.7804]],"totalMs":3766,"dScore":-0.0722,"cosine":0.9825,"top1Match":false},{"quality":"high","qualityLabel":"320k","qualityName":"MP3 320k","scheme":"3x10","schemeLabel":"10/50/90 各 10s","bytesMB":10.19,"downloadMs":1024,"decodeMs":893,"predictMs":713,"vocalMs":426,"audioSec":30,"vocalP":0.011,"score":0.1398,"top":[["film",0.8636],["relaxing",0.8189],["meditative",0.8123],["nature",0.8008],["drama",0.778]],"totalMs":3056,"dScore":-0.1402,"cosine":0.9695,"top1Match":false},{"quality":"lossless","qualityLabel":"无损","qualityName":"FLAC 无损","scheme":"full","schemeLabel":"整首","bytesMB":21.41,"downloadMs":3479,"decodeMs":697,"predictMs":5714,"vocalMs":456,"audioSec":267.1,"vocalP":0.1294,"score":0.28,"top":[["meditative",0.9124],["drama",0.8204],["relaxing",0.7895],["nature",0.7705],["film",0.738]],"totalMs":10346,"dScore":0,"cosine":1,"top1Match":true},{"quality":"lossless","qualityLabel":"无损","qualityName":"FLAC 无损","scheme":"120","schemeLabel":"前 120s","bytesMB":21.41,"downloadMs":3479,"decodeMs":697,"predictMs":2528,"vocalMs":430,"audioSec":120,"vocalP":0.0303,"score":0.2541,"top":[["film",0.8714],["meditative",0.8567],["drama",0.8475],["sad",0.7872],["nature",0.7602]],"totalMs":7134,"dScore":-0.0259,"cosine":0.9922,"top1Match":false},{"quality":"lossless","qualityLabel":"无损","qualityName":"FLAC 无损","scheme":"60","schemeLabel":"前 60s","bytesMB":21.41,"downloadMs":3479,"decodeMs":697,"predictMs":1355,"vocalMs":435,"audioSec":60,"vocalP":0.009,"score":0.2081,"top":[["film",0.8725],["meditative",0.8576],["drama",0.8075],["relaxing",0.7863],["sad",0.7809]],"totalMs":5966,"dScore":-0.0719,"cosine":0.9826,"top1Match":false},{"quality":"lossless","qualityLabel":"无损","qualityName":"FLAC 无损","scheme":"3x10","schemeLabel":"10/50/90 各 10s","bytesMB":21.41,"downloadMs":3479,"decodeMs":697,"predictMs":730,"vocalMs":428,"audioSec":30,"vocalP":0.0114,"score":0.1392,"top":[["film",0.8625],["relaxing",0.8197],["meditative",0.8135],["nature",0.8006],["drama",0.7754]],"totalMs":5334,"dScore":-0.1408,"cosine":0.9692,"top1Match":false}]};
+const Q = DATA.qualities, S = DATA.schemes, ROWS = DATA.rows;
+const KEY = (q, s) => q + '|' + s;
+const MAP = new Map(ROWS.map((r) => [KEY(r.quality, r.scheme), r]));
+const BASE = MAP.get(KEY(DATA.base.quality, DATA.base.scheme));
+const BATCH = 8;
+const LOAD_SHARE = Math.round((DATA.loadMs.mert + DATA.loadMs.clap) / BATCH);
+let selected = KEY(BASE.quality, BASE.scheme);
+let metric = 'total';
+const fmtMs = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + 's' : Math.round(ms) + 'ms');
+const fmtScore = (v) => Number(v).toFixed(3);
+const fmtPct = (v) => (v * 100).toFixed(1) + '%';
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function mix(a, b, t) { const p = (x, y) => Math.round(x + (y - x) * t); return `rgb(${p(a[0], b[0])},${p(a[1], b[1])},${p(a[2], b[2])})`; }
+function heat(t) { t = Math.max(0, Math.min(1, t)); const g = [61, 220, 151], m = [255, 204, 102], r = [255, 107, 107]; return t < 0.5 ? mix(g, m, t / 0.5) : mix(m, r, (t - 0.5) / 0.5); }
+function heatBg(t) { const c = heat(t).match(/\d+/g); return `rgba(${c[0]},${c[1]},${c[2]},0.16)`; }
+ROWS.forEach((r) => { r.allMs = r.totalMs + LOAD_SHARE; r.loadShareMs = LOAD_SHARE; });
+
+const METRICS = {
+  total: { label: '总耗时', get: (r) => r.allMs, fmt: fmtMs, highIsBad: true },
+  pred: { label: '仅推理', get: (r) => r.predictMs, fmt: fmtMs, highIsBad: true },
+  score: { label: '得分', get: (r) => r.score, fmt: fmtScore, highIsBad: false },
+  dscore: { label: 'Δ 得分', get: (r) => r.dScore, fmt: (v) => (v >= 0 ? '+' : '') + v.toFixed(3), highIsBad: false },
+  cosine: { label: '余弦相似', get: (r) => r.cosine, fmt: (v) => Number(v).toFixed(3), highIsBad: false }
+};
+
+document.getElementById('meta').innerHTML =
+  `<b>${esc(DATA.song.title)}</b> · ${esc(DATA.song.durationText || '')} · song_id ${DATA.song.id}<br>` +
+  `段落 <b>${esc(DATA.cue.id)} ${esc(DATA.cue.scene || '')}</b> · 目标 ` +
+  DATA.cue.target.map((t) => `<b>${esc(t.tag)}</b> ${(t.weight * 100).toFixed(0)}%`).join(' / ') +
+  `<br>生成于 ${esc(DATA.generatedAt)} · 基准 = 无损 × 整首（得分 ${fmtScore(BASE.score)}）`;
+
+(function cards() {
+  const fastest = [...ROWS].sort((a, b) => a.allMs - b.allMs)[0];
+  const bestScore = [...ROWS].sort((a, b) => b.score - a.score)[0];
+  const html = [
+    ['基准：无损 · 整首', fmtScore(BASE.score), `top1 ${BASE.top[0][0]} ${fmtPct(BASE.top[0][1])}`],
+    ['最快组合', fmtMs(fastest.allMs), `${fastest.qualityLabel} × ${fastest.schemeLabel}`],
+    ['最高得分', fmtScore(bestScore.score), `${bestScore.qualityLabel} × ${bestScore.schemeLabel}`],
+    ['摊薄加载（每批 ' + BATCH + ' 首）', fmtMs(LOAD_SHARE), `MERT ${fmtMs(DATA.loadMs.mert)} + CLAP ${fmtMs(DATA.loadMs.clap)}`]
+  ].map(([k, v, s]) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+  document.getElementById('cards').innerHTML = html;
+})();
+
+function renderMatrix() {
+  const m = METRICS[metric];
+  const vals = ROWS.map((r) => m.get(r));
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const norm = (v) => (max === min ? 0.5 : (v - min) / (max - min));
+  let html = '<table><thead><tr><th class="rowh">取样方案 \\ 音质</th>' +
+    Q.map((q) => `<th>${esc(q.label)}<br><span style="font-weight:400">${esc(q.name)}</span></th>`).join('') + '</tr></thead><tbody>';
+  for (const s of S) {
+    html += `<tr><td class="rowh">${esc(s.label)}</td>`;
+    for (const q of Q) {
+      const r = MAP.get(KEY(q.key, s.key));
+      if (!r) { html += '<td class="cell" style="opacity:.35">无数据</td>'; continue; }
+      const t = norm(m.get(r));
+      const bad = m.highIsBad ? t : 1 - t;
+      const isBase = q.key === DATA.base.quality && s.key === DATA.base.scheme;
+      html += `<td class="cell${selected === KEY(q.key, s.key) ? ' sel' : ''}" data-key="${KEY(q.key, s.key)}" style="background:${heatBg(bad)}">
+        <div class="big">${m.fmt(m.get(r))}${isBase ? ' <span style="color:var(--accent);font-size:11px">基准</span>' : ''}</div>
+        <div class="sub">推理 ${fmtMs(r.predictMs)} · 得分 ${fmtScore(r.score)}</div></td>`;
+    }
+    html += '</tr>';
+  }
+  const el = document.getElementById('matrix');
+  el.innerHTML = html + '</tbody></table>';
+  el.querySelectorAll('.cell[data-key]').forEach((c) => { c.onclick = () => select(c.dataset.key); });
+}
+
+(function seg() {
+  document.getElementById('metricSeg').innerHTML = Object.entries(METRICS)
+    .map(([k, v]) => `<button data-m="${k}" class="${k === metric ? 'on' : ''}">${v.label}</button>`).join('');
+  document.querySelectorAll('#metricSeg button').forEach((b) => {
+    b.onclick = () => {
+      metric = b.dataset.m;
+      document.querySelectorAll('#metricSeg button').forEach((x) => x.classList.toggle('on', x.dataset.m === metric));
+      renderMatrix();
+    };
+  });
+})();
+
+const SEGS = [['downloadMs', '下载', '#4f8cff'], ['decodeMs', '解码', '#38bdf8'], ['predictMs', 'MERT 推理', '#a78bfa'], ['vocalMs', '人声 CLAP', '#f472b6'], ['loadShareMs', '摊薄加载', '#475569']];
+function renderBars() {
+  const ordered = [...ROWS].sort((a, b) => a.allMs - b.allMs);
+  const max = Math.max(...ROWS.map((r) => r.allMs));
+  const html = ordered.map((r) => {
+    const k = KEY(r.quality, r.scheme);
+    const segs = SEGS.map(([f, , c]) => `<div style="width:${(r[f] / max) * 100}%;background:${c}" title="${f} ${fmtMs(r[f])}"></div>`).join('');
+    return `<div class="bar-row${selected === k ? ' sel' : ''}" data-key="${k}">
+      <div class="bar-name">${esc(r.qualityLabel)} × ${esc(r.schemeLabel)}</div>
+      <div class="bar-track">${segs}</div><div class="bar-val">${fmtMs(r.allMs)}</div></div>`;
+  }).join('');
+  const el = document.getElementById('bars');
+  el.innerHTML = html;
+  el.querySelectorAll('.bar-row').forEach((n) => { n.onclick = () => select(n.dataset.key); });
+  document.getElementById('legend').innerHTML = SEGS.map(([, n, c]) => `<span><i style="background:${c}"></i>${n}</span>`).join('');
+}
+
+const QCOLOR = { standard: '#3ddc97', high: '#6aa9ff', lossless: '#ffcc66' };
+function renderScatter() {
+  const W = 880, H = 330, L = 62, R = 24, T = 20, B = 46;
+  const xs = ROWS.map((r) => r.allMs), ys = ROWS.map((r) => r.score);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs), ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const xpad = (xmax - xmin) * 0.12 || 0.2, ypad = (ymax - ymin) * 0.18 || 0.01;
+  const X0 = xmin - xpad, X1 = xmax + xpad, Y0 = Math.max(0, ymin - ypad), Y1 = ymax + ypad;
+  const x = (v) => L + ((v - X0) / (X1 - X0)) * (W - L - R);
+  const y = (v) => H - B - ((v - Y0) / (Y1 - Y0)) * (H - T - B);
+  let g = '';
+  for (let i = 0; i <= 4; i += 1) {
+    const yv = Y0 + ((Y1 - Y0) * i) / 4;
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(yv)}" y2="${y(yv)}" stroke="#232c3b"/>`;
+    g += `<text x="${L - 8}" y="${y(yv) + 4}" fill="#8b97ab" font-size="11" text-anchor="end">${yv.toFixed(3)}</text>`;
+    const xv = X0 + ((X1 - X0) * i) / 4;
+    g += `<line y1="${T}" y2="${H - B}" x1="${x(xv)}" x2="${x(xv)}" stroke="#232c3b"/>`;
+    g += `<text x="${x(xv)}" y="${H - B + 18}" fill="#8b97ab" font-size="11" text-anchor="middle">${(xv / 1000).toFixed(1)}s</text>`;
+  }
+  g += `<text x="${W / 2}" y="${H - 8}" fill="#8b97ab" font-size="11.5" text-anchor="middle">每首总耗时（含摊薄加载）</text>`;
+  for (const s of S) {
+    const pts = Q.map((q) => MAP.get(KEY(q.key, s.key))).filter(Boolean).sort((a, b) => a.allMs - b.allMs);
+    if (pts.length > 1) g += `<path d="${pts.map((r, i) => (i ? 'L' : 'M') + x(r.allMs) + ' ' + y(r.score)).join(' ')}" fill="none" stroke="#2c3648" stroke-dasharray="3 4"/>`;
+  }
+  for (const q of Q) {
+    const pts = S.map((s) => MAP.get(KEY(q.key, s.key))).filter(Boolean).sort((a, b) => a.allMs - b.allMs);
+    if (pts.length > 1) g += `<path d="${pts.map((r, i) => (i ? 'L' : 'M') + x(r.allMs) + ' ' + y(r.score)).join(' ')}" fill="none" stroke="${QCOLOR[q.key]}" stroke-opacity=".35" stroke-width="1.6"/>`;
+  }
+  for (const r of ROWS) {
+    const k = KEY(r.quality, r.scheme);
+    g += `<circle class="dot" data-key="${k}" cx="${x(r.allMs)}" cy="${y(r.score)}" r="${selected === k ? 7.5 : 5.5}" fill="${QCOLOR[r.quality]}" fill-opacity="${selected === k ? 1 : .78}" stroke="${selected === k ? '#dce7ff' : '#0e1117'}" stroke-width="${selected === k ? 2 : 1}"><title>${esc(r.qualityLabel)} × ${esc(r.schemeLabel)}｜${fmtMs(r.allMs)}｜${fmtScore(r.score)}</title></circle>`;
+    if (r === BASE) g += `<text x="${x(r.allMs)}" y="${y(r.score) - 12}" fill="#dce7ff" font-size="11" text-anchor="middle">基准</text>`;
+  }
+  const el = document.getElementById('scatter');
+  el.innerHTML = g;
+  el.querySelectorAll('.dot').forEach((n) => { n.onclick = () => select(n.dataset.key); });
+}
+
+let sortKey = 'allMs', sortDir = 1;
+const COLS = [
+  ['qualityLabel', '音质', (r) => r.qualityLabel],
+  ['schemeLabel', '方案', (r) => r.schemeLabel],
+  ['bytesMB', '字节(MB)', (r) => r.bytesMB, (r) => r.bytesMB],
+  ['downloadMs', '下载', (r) => fmtMs(r.downloadMs), (r) => r.downloadMs],
+  ['decodeMs', '解码', (r) => fmtMs(r.decodeMs), (r) => r.decodeMs],
+  ['predictMs', '推理', (r) => fmtMs(r.predictMs), (r) => r.predictMs],
+  ['vocalMs', '人声', (r) => fmtMs(r.vocalMs), (r) => r.vocalMs],
+  ['allMs', '合计', (r) => fmtMs(r.allMs), (r) => r.allMs],
+  ['score', '得分', (r) => fmtScore(r.score), (r) => r.score],
+  ['dScore', 'Δ得分', (r) => (r.dScore >= 0 ? '+' : '') + r.dScore.toFixed(3), (r) => r.dScore],
+  ['cosine', '余弦', (r) => Number(r.cosine).toFixed(3), (r) => r.cosine],
+  ['top1Match', 'top1', (r) => (r.top1Match ? '<span class="pill same">一致</span>' : '<span class="pill diff">变了</span>'), (r) => (r.top1Match ? 1 : 0)]
+];
+function renderTable() {
+  const si = Math.max(0, COLS.findIndex((c) => c[0] === sortKey));
+  const rows = [...ROWS].sort((a, b) => {
+    const av = COLS[si][3](a), bv = COLS[si][3](b);
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * sortDir;
+    return String(av).localeCompare(String(bv)) * sortDir;
+  });
+  let h = '<thead><tr>' + COLS.map((c) => `<th data-k="${c[0]}" class="${c[0] === sortKey ? 'on' : ''}">${c[1]}${c[0] === sortKey ? (sortDir > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('') + '</tr></thead><tbody>';
+  for (const r of rows) {
+    const k = KEY(r.quality, r.scheme);
+    h += `<tr data-key="${k}" class="${selected === k ? 'sel' : ''}">` + COLS.map((c) => `<td>${c[2](r)}</td>`).join('') + '</tr>';
+  }
+  const el = document.getElementById('tbl');
+  el.innerHTML = h + '</tbody>';
+  el.querySelectorAll('th').forEach((t) => {
+    t.onclick = () => {
+      if (sortKey === t.dataset.k) sortDir = -sortDir; else { sortKey = t.dataset.k; sortDir = 1; }
+      renderTable();
+    };
+  });
+  el.querySelectorAll('tbody tr').forEach((n) => { n.onclick = () => select(n.dataset.key); });
+}
+
+function renderDetail() {
+  const r = MAP.get(selected);
+  if (!r) return;
+  document.getElementById('detail').innerHTML =
+    `<div class="hd">${esc(r.qualityLabel)} × ${esc(r.schemeLabel)} · ${r.audioSec}s 音频${r === BASE ? '（基准）' : ''}</div>` +
+    `<div class="kv"><span>文件 <b>${r.bytesMB} MB</b></span><span>下载 <b>${fmtMs(r.downloadMs)}</b></span><span>解码 <b>${fmtMs(r.decodeMs)}</b></span>` +
+    `<span>MERT <b>${fmtMs(r.predictMs)}</b></span><span>人声 <b>${fmtMs(r.vocalMs)}</b></span><span>合计 <b>${fmtMs(r.allMs)}</b></span>` +
+    `<span>得分 <b>${fmtScore(r.score)}</b>（Δ ${(r.dScore >= 0 ? '+' : '') + r.dScore.toFixed(3)}）</span><span>余弦 <b>${Number(r.cosine).toFixed(3)}</b></span></div>` +
+    `<div class="tags">${r.top.map(([t, v]) => `<span class="tag">${esc(t)} <b>${fmtPct(v)}</b></span>`).join('')}</div>`;
+}
+
+function renderTake() {
+  const li = [];
+  const q1 = MAP.get(KEY('standard', 'full')), q2 = MAP.get(KEY('high', 'full')), q3 = MAP.get(KEY('lossless', 'full'));
+  if (q1 && q3) li.push(`<b>音质</b>：128k ${fmtScore(q1.score)} / 320k ${fmtScore(q2.score)} / 无损 ${fmtScore(q3.score)}；128k 体积 ${q1.bytesMB}MB、320k ${q2.bytesMB}MB、无损 ${q3.bytesMB}MB。`);
+  const changed = ROWS.filter((r) => !r.top1Match);
+  if (changed.length) li.push(`<b>取样会改变判断</b>：${changed.length} 个组合的 top1 与基准不同，例如 ` + changed.slice(0, 3).map((r) => `${r.qualityLabel}×${r.schemeLabel} → <code>${r.top[0][0]}</code>`).join('、') + '。');
+  const fastest = [...ROWS].sort((a, b) => a.allMs - b.allMs)[0];
+  li.push(`<b>最省</b>：${fastest.qualityLabel} × ${fastest.schemeLabel}，每首 ${fmtMs(fastest.allMs)}，得分 ${fmtScore(fastest.score)}（比基准 ${(fastest.dScore >= 0 ? '+' : '') + fastest.dScore.toFixed(3)}）。`);
+  li.push(`<b>摊薄加载</b> 每首 ${fmtMs(LOAD_SHARE)}（按每批 ${BATCH} 首算）；裁剪越短它占比越高。`);
+  document.getElementById('take').innerHTML = li.map((t) => `<li>${t}</li>`).join('');
+}
+
+document.getElementById('foot').innerHTML =
+  '取样方案：整首 = 全曲；前 120s / 前 60s = 只算开头；10/50/90 各 10s = 在 10%、50%、90% 位置各取 10 秒拼成 30 秒。<br>' +
+  '得分 = Σ(目标标签概率 × 权重) × 负向惩罚 × 人声惩罚，只在同一段内可比。<br>' +
+  '由 <code>scripts/benchmark.mjs</code> 生成。';
+
+function select(key) {
+  selected = key;
+  renderMatrix(); renderBars(); renderScatter(); renderTable(); renderDetail();
+}
+renderMatrix(); renderBars(); renderScatter(); renderTable(); renderDetail(); renderTake();
+</script>
+</body>
+</html>

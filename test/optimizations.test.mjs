@@ -135,7 +135,9 @@ test('P1-2 bgm_view 的 full 表逐首列出候选与得分', () => {
   const table = renderTable(sheet, { mode: 'full' })
   assert.match(table, /待选（候选 1）/)
   assert.match(table, /01 Caisson — Loscil/)
-  assert.match(table, /得分 0\.42/)
+  // 得分是**按当前 target 实时算**的（target = dark 1.0，probs.dark = 0.8 → 0.80），
+  // 不再读落盘的 0.42——那个是上一次 bgm_tag 的快照
+  assert.match(table, /得分 0\.80/)
   assert.match(table, /出自《太空氛围之声》/)
 
   // 没分析时说明白，不留一个空分数
@@ -303,4 +305,87 @@ test('改权重后不重算模型也能刷新得分（bgm_tag 无新歌时要重
   const after = JSON.parse(await fsp.readFile(file, 'utf8'))
   assert.ok(Number.isFinite(after.cues[0].candidates[0].score), '得分应写回文件')
   assert.ok(after.cues[0].candidates[0].score > 0)
+})
+
+// ---------------------------------------------------------------- 0.18 新增行为的断言
+
+test('NOISE：type beat / 变速版 / 夜核不该进池', async () => {
+  const { isNoise } = await import('../lib/filter.js')
+  for (const title of [
+    'Free Sad UK Garage Type Beat - "Ghost of you" pt.2',
+    'NAVxPostMaloneTypeBeat-Leaving',
+    'Shootout (Sped Up)',
+    'Nightcore - Angel',
+    'X (Slowed + Reverb)',
+    'Y - Karaoke Version'
+  ]) assert.ok(isNoise(title), `应被过滤：${title}`)
+  for (const title of ['Death Waltz', 'Caisson', 'Seaside Retreat', '静心']) {
+    assert.ok(!isNoise(title), `不该被过滤：${title}`)
+  }
+})
+
+test('playFlag=false 不再当硬信号；版权下架 / 试听限制才过滤', async () => {
+  const { normalizeTrack } = await import('../lib/filter.js')
+  const base = { originalId: 1, id: 'A'.repeat(32), name: '普通曲目', duration: 200000, artists: [{ name: 'X' }] }
+  assert.ok(normalizeTrack({ ...base, playFlag: false }), 'playFlag=false 应保留（实测大面积误杀 76% 池子）')
+  assert.equal(normalizeTrack({ ...base, noCopyrightRcmd: { typeName: '无版权' } }), null)
+  assert.equal(normalizeTrack({ ...base, freeTrialPrivilege: { cannotListenReason: 1 } }), null)
+  assert.equal(normalizeTrack({ ...base, privilege: { st: -200 } }), null)
+})
+
+test('缓存键带音质与裁剪长度：换口径就换键', async () => {
+  const { cacheKeyOf } = await import('../lib/analyze.js')
+  const a = cacheKeyOf({ version: 'v1', quality: 'high', clipSeconds: 120 })
+  const b = cacheKeyOf({ version: 'v1', quality: 'standard', clipSeconds: 120 })
+  const c = cacheKeyOf({ version: 'v1', quality: 'high', clipSeconds: 0 })
+  assert.equal(a, 'v1-qhigh-c120')
+  assert.notEqual(a, b, '音质不同应当换键')
+  assert.notEqual(a, c, '裁剪长度不同应当换键')
+})
+
+test('探针模式：每段只分析前 3 首并返回池子匹配度', async () => {
+  const home = process.env.DSH_HOME
+  const fake = fileURLToPath(new URL('./fixtures/fake-analyze.mjs', import.meta.url))
+  const codeDir = path.join(home, 'code')
+  const modelsDir = path.join(home, 'models')
+  await fsp.mkdir(codeDir, { recursive: true })
+  await fsp.mkdir(modelsDir, { recursive: true })
+  await fsp.mkdir(path.join(home, 'bgm-prep'), { recursive: true })
+  await fsp.writeFile(path.join(home, 'bgm-prep', 'settings.json'), JSON.stringify({
+    analysis: {
+      engine: 'music2emo', python: process.execPath, script: fake,
+      code: codeDir, models: modelsDir, version: 'test-v1',
+      perSongTimeoutMs: 8000, totalBudgetMs: 60000, batchSize: 8, threads: 2,
+      vocal: { enabled: false }
+    }
+  }, null, 2), 'utf8')
+
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-probe-'))
+  const file = path.join(dir, 'bgm', 'p.cues.json')
+  const tools = new Map()
+  apply({ tools: { register: (t) => tools.set(t.name, t) }, logger: {} })
+  const exec = { agent: { session: { header: { cwd: dir } } } }
+
+  await tools.get('bgm_init').execute({
+    file, module: '探针', scope: 'p',
+    cues: [
+      { scene: '甲段', need_bgm: true, target: [{ tag: 'dark', weight: 1 }] },
+      { scene: '乙段', need_bgm: true, target: [{ tag: 'dark', weight: 1 }] }
+    ]
+  }, exec)
+
+  const sheet = JSON.parse(await fsp.readFile(file, 'utf8'))
+  sheet.cues[0].candidates = Array.from({ length: 6 }, (_, i) => ({ song_id: 7000 + i, title: `甲-${i}`, artist: 'A', album: '', duration: 200 }))
+  sheet.cues[1].candidates = Array.from({ length: 6 }, (_, i) => ({ song_id: 7100 + i, title: `乙-${i}`, artist: 'B', album: '', duration: 200 }))
+  await fsp.writeFile(file, JSON.stringify(sheet, null, 2), 'utf8')
+
+  const run = await tools.get('bgm_tag').execute({ file, probe: true }, exec)
+  assert.equal(run.ok, true, JSON.stringify(run))
+  assert.equal(run.tried, 6, '两段各只看 3 首')
+  assert.equal(run.probes.length, 2)
+  for (const p of run.probes) {
+    assert.equal(p.analyzed, 3)
+    assert.ok(p.poolMatch > 0, '应给出池子匹配度')
+  }
+  assert.equal(typeof run.durationMs, 'number', '每个工具都应返回 durationMs')
 })
