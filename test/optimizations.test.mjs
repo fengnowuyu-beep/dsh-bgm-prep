@@ -256,3 +256,51 @@ test('P2-1 bgm_commit files：两幕合成一个歌单，两边都记下 playlis
   assert.match(review, /## 1\. s1/)
   assert.match(review, /## 2\. s2/)
 })
+
+test('候选展示顺序：已分析按得分降序，未分析垫底', () => {
+  const sheet = {
+    module: '排序', scope: 'x', cues: [{
+      id: 'c01', scene: '测试', trigger: '', need_bgm: true, state: 'ready',
+      target: [{ tag: 'dark', weight: 1 }], picks: null,
+      candidates: [
+        { song_id: 1, title: '低分', artist: 'A', duration: 200, score: 0.12, analysis: { probs: { dark: 0.12 } } },
+        { song_id: 2, title: '还没算', artist: 'B', duration: 200 },
+        { song_id: 3, title: '高分', artist: 'C', duration: 200, score: 0.87, analysis: { probs: { dark: 0.87 } } }
+      ]
+    }]
+  }
+  const table = renderTable(sheet, { mode: 'full', candidateLimit: 3 })
+  const order = ['高分', '低分', '还没算'].map((t) => table.indexOf(t))
+  assert.ok(order[0] < order[1] && order[1] < order[2], `应按 高分 → 低分 → 未分析 排列，实际：${table}`)
+  assert.match(table, /01 高分/, '编号跟着得分名次走')
+})
+
+test('改权重后不重算模型也能刷新得分（bgm_tag 无新歌时要重打分）', async () => {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'bgm-rescore-'))
+  const file = path.join(dir, 'bgm', 'r.cues.json')
+  const tools = new Map()
+  apply({ tools: { register: (t) => tools.set(t.name, t) }, logger: {} })
+  const exec = { agent: { session: { header: { cwd: dir } } } }
+
+  await tools.get('bgm_init').execute({
+    file, module: 'R', scope: 'r',
+    cues: [{ scene: '走廊', need_bgm: true, target: [{ tag: 'dark', weight: 1 }] }]
+  }, exec)
+
+  const sheet = JSON.parse(await fsp.readFile(file, 'utf8'))
+  sheet.cues[0].candidates = [
+    { song_id: 1, title: '甲', artist: 'A', album: '', duration: 200, analysis: { probs: { dark: 0.6, happy: 0.9 }, vocal: 0.05 } },
+    { song_id: 2, title: '乙', artist: 'B', album: '', duration: 200, analysis: { probs: { dark: 0.5 }, vocal: 0.05 } }
+  ]
+  await fsp.writeFile(file, JSON.stringify(sheet, null, 2), 'utf8')
+
+  // 第一次：全部已分析 → 不会跑模型，但应当把得分写进去
+  const run = await tools.get('bgm_tag').execute({ file }, exec)
+  assert.equal(run.ok, true, JSON.stringify(run))
+  assert.equal(run.tried, 0, '不该再跑模型')
+  assert.equal(run.scored, 2, '仍要按当前权重重算得分')
+
+  const after = JSON.parse(await fsp.readFile(file, 'utf8'))
+  assert.ok(Number.isFinite(after.cues[0].candidates[0].score), '得分应写回文件')
+  assert.ok(after.cues[0].candidates[0].score > 0)
+})

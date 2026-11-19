@@ -83,6 +83,8 @@ whenToUse: 用户要为一次跑团准备背景音乐，或继续编辑已有的
 - **结果逐首入库**（`$DSH_HOME/bgm-prep/analysis.db`）：中断最多丢当前一首；同一首歌以后直接取。
 - 输出：56 个概率 + valence/arousal + 段内得分（0–1，会写回 `candidate.score`）。
 - 单首 `KeyError: 'X'`（未知和弦）已由 `tools/m2e/analyze.py` 的运行期垫片兜住；若还出现，说明垫片失效，按错误上报，不要换歌。
+- **只改了 target / 负向权重、想刷新得分**：直接再跑一次 `bgm_tag`。没有新歌要分析时它只重算得分、不跑模型，
+  返回里的 `scored: N` 就是重算的条数。
 
 ### 5. 看表并交付：`bgm_view` / `bgm_verify`
 
